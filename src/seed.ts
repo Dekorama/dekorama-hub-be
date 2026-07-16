@@ -15,9 +15,23 @@ import { ProjectNote } from "./projects/entities/project-note.entity";
 import { ProjectMember, ProjectMemberRole } from "./projects/entities/project-member.entity";
 import { CommunityResidentProfile } from "./communities/entities/community-resident-profile.entity";
 import * as bcrypt from "bcryptjs";
-import * as dotenv from "dotenv";
+import { config as loadEnv } from "dotenv";
+import { join } from "path";
 
-dotenv.config();
+loadEnv();
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} env var is required`);
+  }
+  return value;
+}
+
+const useSsl = process.env.DB_SSL === "true";
+const adminEmail = requireEnv("ADMIN_EMAIL");
+const adminPassword = requireEnv("ADMIN_PASSWORD");
+const adminName = process.env.ADMIN_NAME ?? "Admin Dekorama";
 
 const ds = new DataSource({
   type: "postgres",
@@ -26,28 +40,35 @@ const ds = new DataSource({
   username: process.env.DB_USER ?? "postgres",
   password: process.env.DB_PASSWORD ?? "postgres",
   database: process.env.DB_NAME ?? "dekorama",
-  entities: [User, ProductFamily, ProductSubfamily, Project, ProjectDepartment, ProjectProgressEntry, ProjectNote, ProjectMember, CommunityResidentProfile],
+  ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+  entities: [join(__dirname, "**", "*.entity{.ts,.js}")],
   synchronize: true,
 });
 
 async function seed() {
   await ds.initialize();
   
-  // Seed admin user
+  // Seed admin user from env
   const userRepo = ds.getRepository(User);
-  const existing = await userRepo.findOneBy({ email: "admin@dekorama.com" });
+  const existing = await userRepo.findOneBy({ email: adminEmail });
+  const passwordHash = bcrypt.hashSync(adminPassword, 10);
   if (!existing) {
     const admin = userRepo.create({
-      name: "Admin Dekorama",
-      email: "admin@dekorama.com",
-      passwordHash: await bcrypt.hash("admin123!", 10),
+      name: adminName,
+      email: adminEmail,
+      passwordHash,
       role: UserRole.ADMIN,
       isVerified: true,
     });
     await userRepo.save(admin);
-    console.log("✅ Admin seeded:", admin.email, "/ password: admin123!");
+    console.log("✅ Admin seeded:", admin.email);
   } else {
-    console.log("ℹ️  Admin already exists:", existing.email);
+    existing.name = adminName;
+    existing.passwordHash = passwordHash;
+    existing.role = UserRole.ADMIN;
+    existing.isVerified = true;
+    await userRepo.save(existing);
+    console.log("ℹ️  Admin updated:", existing.email);
   }
 
   // Seed product families

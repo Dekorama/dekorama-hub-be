@@ -55,13 +55,16 @@ import { ExportsModule } from "./exports/exports.module";
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
-      useFactory: () => ({
-        type: "postgres",
+      useFactory: () => {
+        const useSsl = process.env.DB_SSL === "true";
+        return {
+        type: "postgres" as const,
         host: process.env.DB_HOST ?? "localhost",
         port: +(process.env.DB_PORT ?? 5432),
         username: process.env.DB_USER ?? "postgres",
         password: process.env.DB_PASSWORD ?? "postgres",
         database: process.env.DB_NAME ?? "dekorama",
+        ssl: useSsl ? { rejectUnauthorized: false } : undefined,
         autoLoadEntities: true,
         entities: [
           User,
@@ -99,7 +102,8 @@ import { ExportsModule } from "./exports/exports.module";
           SupplierInvoice,
         ],
         synchronize: true,
-      }),
+      };
+      },
     }),
     AuthModule,
     ProjectsModule,
