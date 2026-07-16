@@ -16,24 +16,18 @@ import { LoginDto } from "./dto/login.dto";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { ChangePasswordDto } from "./dto/change-password.dto";
 import { Request, Response } from "express";
-
-const SESSION_COOKIE = "dekorama_session";
-
-function sessionCookieOptions() {
-  const crossSite = process.env.NODE_ENV === "production";
-  return {
-    httpOnly: true,
-    sameSite: crossSite ? ("none" as const) : ("lax" as const),
-    secure: crossSite,
-  };
-}
+import {
+  clearSessionCookie,
+  readSessionUserId,
+  setSessionCookie,
+} from "./session";
 
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   private async requireUser(req: Request) {
-    const userId = (req as Request & { cookies?: Record<string, string> }).cookies?.[SESSION_COOKIE];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();
@@ -52,8 +46,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.authService.registerMember(body);
-    // Auto-login the new member
-    res.cookie(SESSION_COOKIE, user.id, sessionCookieOptions());
+    setSessionCookie(res, user.id);
     return { id: user.id, email: user.email, name: user.name, role: user.role, accountType: user.accountType, parentAccountId: user.parentAccountId };
   }
 
@@ -63,8 +56,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.authService.registerAdmin(body);
-    // Auto-login the new admin
-    res.cookie(SESSION_COOKIE, user.id, sessionCookieOptions());
+    setSessionCookie(res, user.id);
     return { id: user.id, email: user.email, name: user.name, role: user.role, isVerified: user.isVerified };
   }
 
@@ -74,19 +66,19 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.authService.validateUser(body);
-    res.cookie(SESSION_COOKIE, user.id, sessionCookieOptions());
+    setSessionCookie(res, user.id);
     return { id: user.id, email: user.email, name: user.name, role: user.role, isVerified: user.isVerified };
   }
 
   @Post("logout")
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie(SESSION_COOKIE, sessionCookieOptions());
+    clearSessionCookie(res);
     return { ok: true };
   }
 
   @Get("me")
   async me(@Req() req: Request) {
-    const userId = (req as any).cookies?.[SESSION_COOKIE];
+    const userId = readSessionUserId(req);
     if (!userId) return null;
     const user = await this.authService.findById(userId);
     if (!user) return null;
@@ -107,4 +99,3 @@ export class AuthController {
     return { ok: true };
   }
 }
-

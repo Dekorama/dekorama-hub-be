@@ -56,14 +56,24 @@ import { ExportsModule } from "./exports/exports.module";
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       useFactory: () => {
+        const isProd = process.env.NODE_ENV === "production";
         const useSsl = process.env.DB_SSL === "true";
+        const host = process.env.DB_HOST;
+        const username = process.env.DB_USER;
+        const password = process.env.DB_PASSWORD;
+        const database = process.env.DB_NAME;
+
+        if (isProd && (!host || !username || !password || !database)) {
+          throw new Error("DB_HOST, DB_USER, DB_PASSWORD, and DB_NAME are required in production");
+        }
+
         return {
         type: "postgres" as const,
-        host: process.env.DB_HOST ?? "localhost",
+        host: host ?? "localhost",
         port: +(process.env.DB_PORT ?? 5432),
-        username: process.env.DB_USER ?? "postgres",
-        password: process.env.DB_PASSWORD ?? "postgres",
-        database: process.env.DB_NAME ?? "dekorama",
+        username: username ?? "postgres",
+        password: password ?? "postgres",
+        database: database ?? "dekorama",
         ssl: useSsl ? { rejectUnauthorized: false } : undefined,
         autoLoadEntities: true,
         entities: [
@@ -101,7 +111,7 @@ import { ExportsModule } from "./exports/exports.module";
           SupplierOrderLineItem,
           SupplierInvoice,
         ],
-        synchronize: true,
+        synchronize: process.env.DB_SYNCHRONIZE === "true" || !isProd,
       };
       },
     }),

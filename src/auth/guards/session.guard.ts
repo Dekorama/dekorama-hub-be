@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Request } from "express";
 import { AuthService } from "../auth.service";
+import { readSessionUserId } from "../session";
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -13,7 +14,7 @@ export class SessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request>();
-    const userId = (req as any).cookies?.["dekorama_session"];
+    const userId = readSessionUserId(req);
 
     if (!userId) {
       throw new UnauthorizedException("No session found");
@@ -24,8 +25,7 @@ export class SessionGuard implements CanActivate {
       throw new UnauthorizedException("Invalid session");
     }
 
-    // Attach user to request for downstream use
-    (req as any).user = user;
+    (req as Request & { user?: unknown }).user = user;
     return true;
   }
 }

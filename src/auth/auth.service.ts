@@ -14,10 +14,14 @@ import { CommunityResidentProfile } from "../communities/entities/community-resi
 import { AdminInvitation, AdminInvitationStatus } from "../admin/entities/admin-invitation.entity";
 import * as bcrypt from "bcryptjs";
 import * as crypto from "crypto";
+import { requireSecret, timingSafeEqualString } from "../common/secrets";
 
 @Injectable()
 export class AuthService {
-  private readonly TOKEN_SECRET = process.env.INVITATION_TOKEN_SECRET || "dekorama-invitations-secret-change-in-production";
+  private readonly TOKEN_SECRET = requireSecret(
+    "INVITATION_TOKEN_SECRET",
+    "dev-only-invitation-secret-change-me",
+  );
   private readonly TOKEN_EXPIRY_DAYS = 7;
 
   constructor(
@@ -222,7 +226,7 @@ export class AuthService {
         .update(payload)
         .digest("hex");
 
-      if (signature !== expectedSignature) return null;
+      if (!timingSafeEqualString(signature, expectedSignature)) return null;
       return { email, organizerId };
     } catch {
       return null;
@@ -299,7 +303,7 @@ export class AuthService {
         .update(data)
         .digest("base64url");
       
-      if (signature !== expectedSig) return null;
+      if (!timingSafeEqualString(signature, expectedSig)) return null;
 
       const [email, senderId] = data.split(":");
       return { email, senderId };

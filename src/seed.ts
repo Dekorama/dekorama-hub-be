@@ -125,6 +125,23 @@ async function seed() {
     }
   }
 
+  // Demo users/projects — only when SEED_DEMO_USERS=true (never on prod by default)
+  if (process.env.SEED_DEMO_USERS !== "true") {
+    console.log("ℹ️  Skipping demo users (set SEED_DEMO_USERS=true to enable)");
+    await ds.destroy();
+    console.log("\n✨ Seed complete!\n");
+    return;
+  }
+
+  const clientPassword = process.env.SEED_CLIENT_PASSWORD;
+  const communityPassword = process.env.SEED_COMMUNITY_PASSWORD;
+  const memberPassword = process.env.SEED_MEMBER_PASSWORD;
+  if (!clientPassword || !communityPassword || !memberPassword) {
+    throw new Error(
+      "SEED_DEMO_USERS=true requires SEED_CLIENT_PASSWORD, SEED_COMMUNITY_PASSWORD, SEED_MEMBER_PASSWORD",
+    );
+  }
+
   // Seed example client user for projects
   const clientEmail = "cliente@ejemplo.com";
   let client = await userRepo.findOneBy({ email: clientEmail });
@@ -132,13 +149,13 @@ async function seed() {
     client = userRepo.create({
       name: "Juan Pérez",
       email: clientEmail,
-      passwordHash: await bcrypt.hash("cliente123", 10),
+      passwordHash: bcrypt.hashSync(clientPassword, 10),
       role: UserRole.CLIENT,
       accountType: AccountType.INDIVIDUAL,
       isVerified: true,
     });
     await userRepo.save(client);
-    console.log(`✅ Client seeded: ${client.email} / password: cliente123`);
+    console.log(`✅ Client seeded: ${client.email}`);
   } else {
     console.log(`ℹ️  Client already exists: ${client.email}`);
   }
@@ -242,13 +259,13 @@ async function seed() {
     community = userRepo.create({
       name: "Edificio Los Jardines",
       email: communityEmail,
-      passwordHash: await bcrypt.hash("comunidad123", 10),
+      passwordHash: bcrypt.hashSync(communityPassword, 10),
       role: UserRole.CLIENT,
       accountType: AccountType.COMMUNITY,
       isVerified: true,
     });
     await userRepo.save(community);
-    console.log(`✅ Community organizer seeded: ${community.email} / password: comunidad123`);
+    console.log(`✅ Community organizer seeded: ${community.email}`);
   }
 
   const memberEmail = "vecino@ejemplo.com";
@@ -258,7 +275,7 @@ async function seed() {
     member = userRepo.create({
       name: "María Vecino",
       email: memberEmail,
-      passwordHash: await bcrypt.hash("vecino123", 10),
+      passwordHash: bcrypt.hashSync(memberPassword, 10),
       role: UserRole.CLIENT,
       accountType: AccountType.MEMBER,
       parentAccountId: community.id,
@@ -276,7 +293,7 @@ async function seed() {
         notes: "Propietaria",
       }),
     );
-    console.log(`✅ Community member seeded: ${member.email} / password: vecino123`);
+    console.log(`✅ Community member seeded: ${member.email}`);
   }
 
   // Community project with progress + notes

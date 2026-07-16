@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { In, Repository } from "typeorm";
 import * as crypto from "crypto";
+import { requireSecret } from "../common/secrets";
 import { Project, ProjectStatus, ProjectType } from "./project.entity";
 import { ProjectDepartment } from "./entities/project-department.entity";
 import { ProjectProgressEntry } from "./entities/project-progress-entry.entity";
@@ -45,9 +46,10 @@ const ROLE_RANK: Record<ProjectMemberRole, number> = {
 
 @Injectable()
 export class ProjectsService {
-  private readonly TOKEN_SECRET =
-    process.env.INVITATION_TOKEN_SECRET ||
-    "dekorama-invitations-secret-change-in-production";
+  private readonly TOKEN_SECRET = requireSecret(
+    "INVITATION_TOKEN_SECRET",
+    "dev-only-invitation-secret-change-me",
+  );
   private readonly FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
   constructor(

@@ -21,6 +21,7 @@ import {
   UpdateSubfamilyDto,
 } from "./product.dto";
 import { AuthService } from "../auth/auth.service";
+import { readSessionUserId } from "../auth/session";
 import { UserRole } from "../users/user.entity";
 import { parseMarketFilter } from "../common/market-filter";
 
@@ -32,7 +33,7 @@ export class ProductsController {
   ) {}
 
   private async requireUser(req: Request) {
-    const userId = (req as any).cookies?.["dekorama_session"];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();

@@ -8,10 +8,14 @@ import { CreateCommunityInvitationDto, AcceptInvitationResponseDto } from "./dto
 import { UpdateCommunityMemberDto } from "./dto/community-member.dto";
 import { EmailService } from "../email/email.service";
 import * as crypto from "crypto";
+import { requireSecret, timingSafeEqualString } from "../common/secrets";
 
 @Injectable()
 export class CommunitiesService {
-  private readonly TOKEN_SECRET = process.env.INVITATION_TOKEN_SECRET || "dekorama-invitations-secret-change-in-production";
+  private readonly TOKEN_SECRET = requireSecret(
+    "INVITATION_TOKEN_SECRET",
+    "dev-only-invitation-secret-change-me",
+  );
   private readonly TOKEN_EXPIRY_DAYS = 7;
   private readonly FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
@@ -206,7 +210,7 @@ export class CommunitiesService {
         .update(payload)
         .digest("hex");
 
-      if (signature !== expectedSignature) return null;
+      if (!timingSafeEqualString(signature, expectedSignature)) return null;
       return { email, organizerId };
     } catch {
       return null;

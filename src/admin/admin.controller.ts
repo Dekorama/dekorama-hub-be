@@ -28,6 +28,8 @@ import { ProjectsService } from "../projects/projects.service";
 import { ProjectStatus, ProjectType } from "../projects/project.entity";
 import * as crypto from "crypto";
 import * as bcrypt from "bcryptjs";
+import { requireSecret, timingSafeEqualString } from "../common/secrets";
+import { readSessionUserId } from "../auth/session";
 
 class VerifyUserDto {
   isVerified!: boolean;
@@ -40,7 +42,7 @@ class UpdateClientTaxDto {
 
 @Controller("admin")
 export class AdminController {
-  private readonly SECRET = process.env.JWT_SECRET || "dekorama-secret-2026";
+  private readonly SECRET = requireSecret("JWT_SECRET", "dev-only-jwt-secret-change-me");
   private readonly EXPIRY_DAYS = 7;
 
   constructor(
@@ -55,7 +57,7 @@ export class AdminController {
   ) {}
 
   private async requireAdmin(req: Request): Promise<User> {
-    const userId = (req as any).cookies?.["dekorama_session"];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();
@@ -180,11 +182,10 @@ export class AdminController {
       throw new BadRequestException("Ya existe un usuario con ese email");
     }
 
-    const password =
-      body.password && body.password.length >= 6
-        ? body.password
-        : crypto.randomBytes(12).toString("base64url");
-    const passwordHash = await bcrypt.hash(password, 10);
+    if (!body.password || body.password.length < 8) {
+      throw new BadRequestException("La contraseña debe tener al menos 8 caracteres");
+    }
+    const passwordHash = await bcrypt.hash(body.password, 10);
 
     const client = this.usersRepo.create({
       name: body.name.trim(),
@@ -200,7 +201,7 @@ export class AdminController {
     });
     const saved = await this.usersRepo.save(client);
     const { passwordHash: _pw, ...safe } = saved;
-    return { ...safe, temporaryPassword: body.password ? undefined : password };
+    return safe;
   }
 
   @Post("invite")
@@ -286,7 +287,7 @@ export class AdminController {
       const data = Buffer.from(dataB64, "base64url").toString();
       const expectedSig = crypto.createHmac("sha256", this.SECRET).update(data).digest("base64url");
       
-      if (signature !== expectedSig) return null;
+      if (!timingSafeEqualString(signature, expectedSig)) return null;
 
       const [email, senderId, timestamp] = data.split(":");
       return { email, senderId, timestamp: parseInt(timestamp) };

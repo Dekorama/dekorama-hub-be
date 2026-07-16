@@ -13,6 +13,7 @@ import { CommunitiesService } from "./communities.service";
 import { CreateCommunityInvitationDto } from "./dto/community-invitation.dto";
 import { UpdateCommunityMemberDto } from "./dto/community-member.dto";
 import { AuthService } from "../auth/auth.service";
+import { readSessionUserId } from "../auth/session";
 
 @Controller("communities")
 export class CommunitiesController {
@@ -22,7 +23,7 @@ export class CommunitiesController {
   ) {}
 
   private async requireUser(req: Request) {
-    const userId = (req as any).cookies?.["dekorama_session"];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();

@@ -24,6 +24,7 @@ import {
   UpdateProjectDto,
 } from "./project.dto";
 import { AuthService } from "../auth/auth.service";
+import { readSessionUserId } from "../auth/session";
 import { UserRole } from "../users/user.entity";
 
 @Controller("projects")
@@ -34,9 +35,7 @@ export class ProjectsController {
   ) {}
 
   private async requireUser(req: Request) {
-    const userId = (req as Request & { cookies?: Record<string, string> }).cookies?.[
-      "dekorama_session"
-    ];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();
@@ -45,9 +44,7 @@ export class ProjectsController {
 
   @Get()
   async list(@Req() req: Request) {
-    const userId = (req as Request & { cookies?: Record<string, string> }).cookies?.[
-      "dekorama_session"
-    ];
+    const userId = readSessionUserId(req);
     if (!userId) return this.projectsService.listPublic();
     const user = await this.authService.findById(userId);
     if (!user) return this.projectsService.listPublic();

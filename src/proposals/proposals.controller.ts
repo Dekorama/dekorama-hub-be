@@ -22,6 +22,7 @@ import {
   UpdateProposalStatusDto,
 } from "./proposal.dto";
 import { AuthService } from "../auth/auth.service";
+import { readSessionUserId } from "../auth/session";
 import { parseMarketFilter } from "../common/market-filter";
 import { ProposalStatus } from "./proposal.entity";
 
@@ -33,7 +34,7 @@ export class ProposalsController {
   ) {}
 
   private async requireUser(req: Request) {
-    const userId = (req as Request & { cookies?: Record<string, string> }).cookies?.["dekorama_session"];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();

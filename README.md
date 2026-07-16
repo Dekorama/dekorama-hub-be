@@ -53,48 +53,37 @@ npm start
 | `PORT` | `3001` | API port |
 | `FRONTEND_ORIGIN` | `http://localhost:3000` | CORS origin (credentials) |
 | `FRONTEND_URL` | `http://localhost:3000` | Links in emails / invitations |
-| `DB_HOST` | `localhost` | |
-| `DB_PORT` | `5432` | |
-| `DB_USER` | `postgres` | |
-| `DB_PASSWORD` | `postgres` | |
-| `DB_NAME` | `dekorama` | Matches `docker-compose.yml` |
-| `BREVO_API_KEY` | _(empty)_ | Transactional email; skipped if unset |
-| `INVITATION_TOKEN_SECRET` | fallback string | Community / project invite tokens |
-| `JWT_SECRET` | fallback string | Admin invite tokens |
+| `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | local postgres | **Required in production** |
+| `DB_SSL` | `false` | `true` on Render |
+| `DB_SYNCHRONIZE` | off in prod | Set `true` on Render until migrations |
+| `JWT_SECRET` | — | **Required in production** (admin invite HMAC) |
+| `SESSION_SECRET` | falls back to JWT | Session cookie HMAC |
+| `INVITATION_TOKEN_SECRET` | — | **Required in production** |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | Required for `npm run seed` |
+| `BREVO_API_KEY` | _(empty)_ | Transactional email |
+| `SESSION_TTL_MS` | 7 days | Session cookie lifetime |
+| `AUTH_RATE_LIMIT_MAX` | `20` | Login/register attempts per window |
+| `SEED_DEMO_USERS` | `false` | If `true`, also require `SEED_*_PASSWORD` vars |
 
-Example `.env`:
+Example `.env`: see `.env.example`.
+
+TypeORM: `synchronize` only in non-prod unless `DB_SYNCHRONIZE=true`. Prefer migrations for production long-term.
+
+## Seed
 
 ```bash
-PORT=3001
-FRONTEND_ORIGIN=http://localhost:3000
-FRONTEND_URL=http://localhost:3000
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=dekorama
-BREVO_API_KEY=
-INVITATION_TOKEN_SECRET=change-me
+# Admin only (from ADMIN_EMAIL / ADMIN_PASSWORD) + catalog families
+npm run seed
+
+# Optional demo users/projects (local):
+SEED_DEMO_USERS=true \
+SEED_CLIENT_PASSWORD='...' \
+SEED_COMMUNITY_PASSWORD='...' \
+SEED_MEMBER_PASSWORD='...' \
+npm run seed
 ```
 
-TypeORM runs with `synchronize: true` (schema auto-updates). Fine for local/MVP; use migrations before production.
-
-## Seed accounts
-
-`npm run seed` is idempotent. Creates:
-
-| Email | Password | Role |
-|-------|----------|------|
-| `admin@dekorama.com` | `admin123!` | admin |
-| `cliente@ejemplo.com` | `cliente123` | client (individual) |
-| `comunidad@ejemplo.com` | `comunidad123` | client (community) |
-| `vecino@ejemplo.com` | `vecino123` | client (member) |
-
-Also seeds product families/subfamilies and sample projects.
-
-## Modules / API surface
-
-Session cookie: `dekorama_session` = user UUID. Send `credentials: "include"` from the frontend.
+Session cookie: signed `dekorama_session` (HMAC + expiry). Send `credentials: "include"`.
 
 | Prefix | Domain |
 |--------|--------|

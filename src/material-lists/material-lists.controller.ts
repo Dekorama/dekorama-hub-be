@@ -12,6 +12,7 @@ import { Request } from "express";
 import { MaterialListsService } from "./material-lists.service";
 import { AddMaterialDto } from "./material-list.dto";
 import { AuthService } from "../auth/auth.service";
+import { readSessionUserId } from "../auth/session";
 
 @Controller("proposals/:proposalId/materials")
 export class MaterialListsController {
@@ -21,7 +22,7 @@ export class MaterialListsController {
   ) {}
 
   private async requireUser(req: Request) {
-    const userId = (req as any).cookies?.["dekorama_session"];
+    const userId = readSessionUserId(req);
     if (!userId) throw new UnauthorizedException();
     const user = await this.authService.findById(userId);
     if (!user) throw new UnauthorizedException();
