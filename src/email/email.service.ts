@@ -69,7 +69,7 @@ export class EmailService {
         body: JSON.stringify({
           sender: { name: this.fromName, email: this.fromEmail },
           to: [{ email: to }],
-          subject: "Invitación de administrador — Dekorama Hub",
+          subject: "Invitación de administrador Dekorama Hub",
           htmlContent: this.getAdminInvitationTemplate(inviteLink, senderName),
         }),
       });
