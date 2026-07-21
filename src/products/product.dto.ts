@@ -34,10 +34,11 @@ export class CreateProductDto {
   @IsUUID()
   supplierId!: string;
 
+  /** Optional; if omitted, backend uses the generated SKU. */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @Length(1, 100)
-  factoryCode!: string;
+  factoryCode?: string;
 
   @IsOptional()
   @IsIn([PricingMode.NETO, PricingMode.PVP])
@@ -54,7 +55,7 @@ export class CreateProductDto {
 
   @IsNumber()
   @Min(0)
-  @Max(100)
+  @Max(999)
   profitMargin!: number;
 
   @ValidateIf((o: CreateProductDto) => o.pricingMode === PricingMode.PVP)
@@ -66,6 +67,16 @@ export class CreateProductDto {
   @IsString()
   @Length(1, 50)
   unit?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  piecesPerBox?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unitPerPiece?: number | null;
 
   @IsOptional()
   @IsNumber()
@@ -121,7 +132,7 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  @Max(100)
+  @Max(999)
   profitMargin?: number;
 
   @IsOptional()
@@ -133,6 +144,16 @@ export class UpdateProductDto {
   @IsString()
   @Length(1, 50)
   unit?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  piecesPerBox?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unitPerPiece?: number | null;
 
   @IsOptional()
   @IsNumber()

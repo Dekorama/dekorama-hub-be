@@ -70,6 +70,14 @@ export class Product {
   @Column({ type: "varchar", length: 50, default: "unidad" })
   unit!: string;
 
+  /** Piezas por caja — required when unit is m2. */
+  @Column({ type: "int", nullable: true })
+  piecesPerBox!: number | null;
+
+  /** Cobertura de una pieza en la unidad del producto (ej. m²/pieza). */
+  @Column({ type: "numeric", precision: 12, scale: 4, nullable: true })
+  unitPerPiece!: number | null;
+
   @Column({ type: "int", default: 0 })
   stock!: number;
 

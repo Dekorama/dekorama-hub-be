@@ -47,6 +47,42 @@ export class ProductsService {
     await this.ensureSupplierFamilyLink(supplierId, familyCode);
   }
 
+  private isM2Unit(unit?: string | null): boolean {
+    if (!unit) return false;
+    const normalized = unit
+      .trim()
+      .toLowerCase()
+      .replace("²", "2")
+      .replace(/\s+/g, "");
+    return normalized === "m2";
+  }
+
+  private assertM2Packaging(
+    unit: string | null | undefined,
+    piecesPerBox: number | null | undefined,
+    unitPerPiece: number | null | undefined,
+  ): void {
+    if (!this.isM2Unit(unit)) return;
+    if (
+      piecesPerBox === undefined ||
+      piecesPerBox === null ||
+      Number(piecesPerBox) < 1
+    ) {
+      throw new BadRequestException(
+        "Unidad m2 requiere piezas por caja (> 0)",
+      );
+    }
+    if (
+      unitPerPiece === undefined ||
+      unitPerPiece === null ||
+      Number(unitPerPiece) <= 0
+    ) {
+      throw new BadRequestException(
+        "Unidad m2 requiere cobertura por pieza (> 0)",
+      );
+    }
+  }
+
   /** Upsert junction so product create can link supplier ↔ family on the fly. */
   private async ensureSupplierFamilyLink(
     supplierId: string,
@@ -238,8 +274,8 @@ export class ProductsService {
     const family = await this.familyRepo.findOneBy({ code: dto.family });
     if (!family) throw new BadRequestException("Familia no válida");
 
-    if (!dto.supplierId || !dto.factoryCode?.trim()) {
-      throw new BadRequestException("Proveedor y código de fábrica son obligatorios");
+    if (!dto.supplierId) {
+      throw new BadRequestException("Proveedor obligatorio");
     }
 
     await this.assertSupplierLinkedToFamily(dto.supplierId, dto.family);
@@ -268,8 +304,13 @@ export class ProductsService {
       }
     }
 
+    const unit = dto.unit ?? "unidad";
+    const isM2 = this.isM2Unit(unit);
+    this.assertM2Packaging(unit, dto.piecesPerBox, dto.unitPerPiece);
+
     const market = dto.market ?? MarketCode.VE;
     const sku = await this.generateSku(supplier.prefix);
+    const resolvedFactoryCode = dto.factoryCode?.trim() || sku;
 
     const product = this.repo.create({
       name: dto.name,
@@ -280,7 +321,9 @@ export class ProductsService {
       factoryCost: dto.factoryCost ?? 0,
       profitMargin: dto.profitMargin ?? 0,
       pvpPrice: pricingMode === PricingMode.PVP ? dto.pvpPrice! : 0,
-      unit: dto.unit,
+      unit,
+      piecesPerBox: isM2 ? Number(dto.piecesPerBox) : null,
+      unitPerPiece: isM2 ? Number(dto.unitPerPiece) : null,
       stock: market === MarketCode.ES ? 0 : (dto.stock ?? 0),
       description: dto.description,
       imageUrl: dto.imageUrl,
@@ -296,7 +339,7 @@ export class ProductsService {
     await this.upsertPrimaryFactoryCode(
       saved.sku,
       dto.supplierId,
-      dto.factoryCode.trim(),
+      resolvedFactoryCode,
       Number(saved.factoryCost),
     );
 
@@ -391,9 +434,23 @@ export class ProductsService {
       product.subfamilyName = subfamily.name;
     }
 
+    const effectiveUnit = dto.unit ?? product.unit;
+    if (this.isM2Unit(effectiveUnit)) {
+      const pieces =
+        dto.piecesPerBox !== undefined ? dto.piecesPerBox : product.piecesPerBox;
+      const perPiece =
+        dto.unitPerPiece !== undefined ? dto.unitPerPiece : product.unitPerPiece;
+      this.assertM2Packaging(effectiveUnit, pieces, perPiece);
+      product.piecesPerBox = Number(pieces);
+      product.unitPerPiece = Number(perPiece);
+    } else if (dto.unit !== undefined) {
+      product.piecesPerBox = null;
+      product.unitPerPiece = null;
+    }
+
     const saved = await this.repo.save(product);
 
-    if (supplierId || factoryCode || pricingFieldsChanged) {
+    if (supplierId || factoryCode !== undefined || pricingFieldsChanged) {
       let resolvedSupplierId = supplierId;
       let resolvedFactoryCode = factoryCode?.trim();
 
@@ -402,7 +459,8 @@ export class ProductsService {
           where: { productSku: saved.sku, isPrimary: true },
         });
         resolvedSupplierId = resolvedSupplierId ?? primary?.supplierId;
-        resolvedFactoryCode = resolvedFactoryCode ?? primary?.factoryCode;
+        resolvedFactoryCode =
+          resolvedFactoryCode || primary?.factoryCode || saved.sku;
       }
 
       if (resolvedSupplierId && resolvedFactoryCode) {
