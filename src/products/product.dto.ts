@@ -34,7 +34,7 @@ export class CreateProductDto {
   @IsUUID()
   supplierId!: string;
 
-  /** Optional; if omitted, backend uses the generated SKU. */
+  /** Ignored — factory code always equals SKU. Kept optional for API compat. */
   @IsOptional()
   @IsString()
   @Length(1, 100)

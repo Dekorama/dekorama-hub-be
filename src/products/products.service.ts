@@ -310,7 +310,8 @@ export class ProductsService {
 
     const market = dto.market ?? MarketCode.VE;
     const sku = await this.generateSku(supplier.prefix);
-    const resolvedFactoryCode = dto.factoryCode?.trim() || sku;
+    // Pedidos a proveedor usan el SKU como referencia de fábrica.
+    const resolvedFactoryCode = sku;
 
     const product = this.repo.create({
       name: dto.name,

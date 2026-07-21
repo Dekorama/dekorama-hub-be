@@ -31,11 +31,11 @@ export class CreateSupplierDto {
   @MaxLength(255)
   name!: string;
 
-  /** 3-letter SKU prefix (unique). */
+  /** 3-letter SKU prefix (unique). Auto-generated from name if omitted. */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @Length(3, 3)
-  prefix!: string;
+  prefix?: string;
 
   /** Families this supplier serves (1:N). */
   @IsArray()

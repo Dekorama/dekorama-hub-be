@@ -56,6 +56,50 @@ export class SuppliersService {
     return prefix;
   }
 
+  /** Derive unique 3-char prefix from supplier name. */
+  private async generateUniquePrefix(name: string): Promise<string> {
+    const cleaned = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+    const seed = (cleaned.slice(0, 3) || "SUP").padEnd(3, "X");
+
+    const isFree = async (prefix: string): Promise<boolean> => {
+      const taken = await this.supplierRepo.findOneBy({ prefix });
+      return !taken;
+    };
+
+    if (await isFree(seed)) return seed;
+
+    for (let i = 0; i < 36; i++) {
+      const c = i < 10 ? String(i) : String.fromCharCode(65 + i - 10);
+      const candidate = seed.slice(0, 2) + c;
+      if (await isFree(candidate)) return candidate;
+    }
+
+    for (let i = 0; i < 36 * 36 * 36; i++) {
+      const candidate = i
+        .toString(36)
+        .toUpperCase()
+        .padStart(3, "0")
+        .slice(-3);
+      if (await isFree(candidate)) return candidate;
+    }
+
+    throw new BadRequestException("No se pudo generar un prefijo SKU único");
+  }
+
+  private async resolvePrefix(
+    raw: string | undefined,
+    name: string,
+  ): Promise<string> {
+    if (raw?.trim()) {
+      return this.normalizePrefix(raw);
+    }
+    return this.generateUniquePrefix(name);
+  }
+
   private async assertFamiliesExist(familyCodes: string[]): Promise<string[]> {
     const codes = [
       ...new Set(familyCodes.map((c) => c.trim().toUpperCase()).filter(Boolean)),
@@ -173,7 +217,7 @@ export class SuppliersService {
     user: User,
   ): Promise<SupplierWithFamilies> {
     this.requireAdmin(user);
-    const prefix = this.normalizePrefix(dto.prefix);
+    const prefix = await this.resolvePrefix(dto.prefix, dto.name);
     const taken = await this.supplierRepo.findOneBy({ prefix });
     if (taken) throw new BadRequestException(`Prefijo ${prefix} ya en uso`);
 
@@ -214,13 +258,17 @@ export class SuppliersService {
     Object.assign(supplier, rest);
 
     if (prefix !== undefined) {
-      const normalized = this.normalizePrefix(prefix);
-      if (normalized !== supplier.prefix) {
-        const taken = await this.supplierRepo.findOneBy({ prefix: normalized });
-        if (taken && taken.id !== id) {
-          throw new BadRequestException(`Prefijo ${normalized} ya en uso`);
+      if (!prefix.trim()) {
+        // keep existing prefix — empty means no change
+      } else {
+        const normalized = this.normalizePrefix(prefix);
+        if (normalized !== supplier.prefix) {
+          const taken = await this.supplierRepo.findOneBy({ prefix: normalized });
+          if (taken && taken.id !== id) {
+            throw new BadRequestException(`Prefijo ${normalized} ya en uso`);
+          }
+          supplier.prefix = normalized;
         }
-        supplier.prefix = normalized;
       }
     }
 
