@@ -234,31 +234,28 @@ export class AuthService {
   }
 
   async registerAdmin(input: RegisterAdminDto): Promise<User> {
-    // Validate token
-    const decoded = this.validateAdminToken(input.token);
-    if (!decoded) {
-      throw new BadRequestException("Token inválido");
-    }
-
-    // Find invitation
+    // Look up by stored token (DB is source of truth). Do not HMAC-verify here:
+    // older invites were signed with JWT_SECRET while new ones use INVITATION_TOKEN_SECRET.
     const invitation = await this.adminInvitationsRepo.findOne({
       where: { token: input.token },
     });
 
     if (!invitation) {
-      throw new BadRequestException("Invitación no encontrada");
+      throw new BadRequestException("Token inválido");
+    }
+
+    if (invitation.status === AdminInvitationStatus.REVOKED) {
+      throw new BadRequestException("Invitación revocada");
     }
 
     if (invitation.status !== AdminInvitationStatus.PENDING) {
       throw new BadRequestException("Invitación ya fue utilizada");
     }
 
-    // Check if email matches
     if (invitation.inviteeEmail !== input.email) {
       throw new BadRequestException("Email no coincide con la invitación");
     }
 
-    // Check expiry
     const expiryDate = new Date(invitation.createdAt);
     expiryDate.setDate(expiryDate.getDate() + this.TOKEN_EXPIRY_DAYS);
     if (new Date() > expiryDate) {
@@ -267,7 +264,6 @@ export class AuthService {
       throw new BadRequestException("Invitación expirada");
     }
 
-    // Check if email already exists
     const existing = await this.usersRepo.findOne({
       where: { email: input.email },
     });
@@ -275,7 +271,6 @@ export class AuthService {
       throw new BadRequestException("Email ya registrado");
     }
 
-    // Create admin user
     const passwordHash = await bcrypt.hash(input.password, 10);
     const user = this.usersRepo.create({
       name: input.name,
@@ -287,29 +282,10 @@ export class AuthService {
     });
     const savedUser = await this.usersRepo.save(user);
 
-    // Mark invitation as accepted
     invitation.status = AdminInvitationStatus.ACCEPTED;
     await this.adminInvitationsRepo.save(invitation);
 
     return savedUser;
-  }
-
-  private validateAdminToken(token: string): { email: string; senderId: string } | null {
-    try {
-      const [dataB64, signature] = token.split(".");
-      const data = Buffer.from(dataB64, "base64url").toString();
-      const expectedSig = crypto
-        .createHmac("sha256", this.TOKEN_SECRET)
-        .update(data)
-        .digest("base64url");
-      
-      if (!timingSafeEqualString(signature, expectedSig)) return null;
-
-      const [email, senderId] = data.split(":");
-      return { email, senderId };
-    } catch {
-      return null;
-    }
   }
 }
 

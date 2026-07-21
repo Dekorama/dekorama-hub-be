@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -28,7 +30,7 @@ import { ProjectsService } from "../projects/projects.service";
 import { ProjectStatus, ProjectType } from "../projects/project.entity";
 import * as crypto from "crypto";
 import * as bcrypt from "bcryptjs";
-import { requireSecret, timingSafeEqualString } from "../common/secrets";
+import { requireSecret } from "../common/secrets";
 import { readSessionUserId } from "../auth/session";
 
 class VerifyUserDto {
@@ -42,7 +44,10 @@ class UpdateClientTaxDto {
 
 @Controller("admin")
 export class AdminController {
-  private readonly SECRET = requireSecret("JWT_SECRET", "dev-only-jwt-secret-change-me");
+  private readonly SECRET = requireSecret(
+    "INVITATION_TOKEN_SECRET",
+    "dev-only-invitation-secret-change-me",
+  );
   private readonly EXPIRY_DAYS = 7;
 
   constructor(
@@ -207,22 +212,27 @@ export class AdminController {
   @Post("invite")
   async inviteAdmins(@Body() dto: InviteAdminDto, @Req() req: Request) {
     const sender = await this.requireAdmin(req);
-    const frontendUrl = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
     const invitations: AdminInvitation[] = [];
 
     for (const email of dto.emails) {
-      const token = this.generateToken(email, sender.id);
+      const normalized = email.trim().toLowerCase();
+      const pending = await this.adminInvitationsRepo.findOne({
+        where: { inviteeEmail: normalized, status: AdminInvitationStatus.PENDING },
+      });
+      if (pending) {
+        throw new BadRequestException(`Ya existe una invitación pendiente para ${normalized}`);
+      }
+
+      const token = this.generateToken(normalized, sender.id);
       const invitation = this.adminInvitationsRepo.create({
         senderId: sender.id,
-        inviteeEmail: email,
+        inviteeEmail: normalized,
         token,
         status: AdminInvitationStatus.PENDING,
       });
       await this.adminInvitationsRepo.save(invitation);
       invitations.push(invitation);
-
-      const inviteLink = `${frontendUrl}/registro?admin_token=${token}`;
-      await this.emailService.sendAdminInvitation(email, inviteLink, sender.name);
+      await this.sendInviteEmail(invitation, sender.name);
     }
 
     return invitations;
@@ -230,29 +240,72 @@ export class AdminController {
 
   @Get("invitations")
   async listInvitations(@Req() req: Request) {
-    const sender = await this.requireAdmin(req);
+    await this.requireAdmin(req);
     return this.adminInvitationsRepo.find({
-      where: { senderId: sender.id },
       order: { createdAt: "DESC" },
     });
+  }
+
+  @Post("invitations/:id/revoke")
+  async revokeInvitation(@Param("id") id: string, @Req() req: Request) {
+    await this.requireAdmin(req);
+    const invitation = await this.findInvitationOrFail(id);
+
+    if (invitation.status !== AdminInvitationStatus.PENDING) {
+      throw new BadRequestException("Solo se pueden revocar invitaciones pendientes");
+    }
+
+    invitation.status = AdminInvitationStatus.REVOKED;
+    return this.adminInvitationsRepo.save(invitation);
+  }
+
+  @Post("invitations/:id/resend")
+  async resendInvitation(@Param("id") id: string, @Req() req: Request) {
+    const sender = await this.requireAdmin(req);
+    const invitation = await this.findInvitationOrFail(id);
+
+    if (invitation.status === AdminInvitationStatus.ACCEPTED) {
+      throw new BadRequestException("No se puede reenviar una invitación ya aceptada");
+    }
+
+    const token = this.generateToken(invitation.inviteeEmail, sender.id);
+    await this.adminInvitationsRepo.update(id, {
+      token,
+      status: AdminInvitationStatus.PENDING,
+      createdAt: new Date(),
+      senderId: sender.id,
+    });
+
+    const updated = await this.findInvitationOrFail(id);
+    await this.sendInviteEmail(updated, sender.name);
+    return updated;
+  }
+
+  @Delete("invitations/:id")
+  async deleteInvitation(@Param("id") id: string, @Req() req: Request) {
+    await this.requireAdmin(req);
+    const invitation = await this.findInvitationOrFail(id);
+    await this.adminInvitationsRepo.remove(invitation);
+    return { ok: true };
   }
 
   @Get("accept-invite/:token")
   async validateInvitation(
     @Param("token") token: string,
   ): Promise<AcceptAdminInvitationResponseDto> {
-    const decoded = this.validateToken(token);
-    if (!decoded) {
-      throw new BadRequestException("Token inválido");
-    }
-
+    // DB is source of truth — HMAC was signed with JWT_SECRET historically,
+    // so we do not re-verify signature here (register-admin uses the same lookup).
     const invitation = await this.adminInvitationsRepo.findOne({
       where: { token },
       relations: ["sender"],
     });
 
     if (!invitation) {
-      throw new BadRequestException("Invitación no encontrada");
+      throw new BadRequestException("Token inválido");
+    }
+
+    if (invitation.status === AdminInvitationStatus.REVOKED) {
+      throw new BadRequestException("Invitación revocada");
     }
 
     if (invitation.status !== AdminInvitationStatus.PENDING) {
@@ -274,25 +327,26 @@ export class AdminController {
     };
   }
 
+  private async findInvitationOrFail(id: string): Promise<AdminInvitation> {
+    const invitation = await this.adminInvitationsRepo.findOne({ where: { id } });
+    if (!invitation) throw new NotFoundException("Invitación no encontrada");
+    return invitation;
+  }
+
+  private async sendInviteEmail(invitation: AdminInvitation, senderName: string): Promise<void> {
+    const frontendUrl = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
+    const inviteLink = `${frontendUrl}/registro?admin_token=${encodeURIComponent(invitation.token)}`;
+    await this.emailService.sendAdminInvitation(
+      invitation.inviteeEmail,
+      inviteLink,
+      senderName,
+    );
+  }
+
   private generateToken(email: string, senderId: string): string {
     const timestamp = Date.now().toString();
     const data = `${email}:${senderId}:${timestamp}`;
     const signature = crypto.createHmac("sha256", this.SECRET).update(data).digest("base64url");
     return `${Buffer.from(data).toString("base64url")}.${signature}`;
-  }
-
-  private validateToken(token: string): { email: string; senderId: string; timestamp: number } | null {
-    try {
-      const [dataB64, signature] = token.split(".");
-      const data = Buffer.from(dataB64, "base64url").toString();
-      const expectedSig = crypto.createHmac("sha256", this.SECRET).update(data).digest("base64url");
-      
-      if (!timingSafeEqualString(signature, expectedSig)) return null;
-
-      const [email, senderId, timestamp] = data.split(":");
-      return { email, senderId, timestamp: parseInt(timestamp) };
-    } catch {
-      return null;
-    }
   }
 }

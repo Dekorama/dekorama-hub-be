@@ -12,6 +12,7 @@ export enum AdminInvitationStatus {
   PENDING = "pending",
   ACCEPTED = "accepted",
   EXPIRED = "expired",
+  REVOKED = "revoked",
 }
 
 @Entity("admin_invitations")
@@ -33,8 +34,8 @@ export class AdminInvitation {
   token: string;
 
   @Column({
-    type: "enum",
-    enum: AdminInvitationStatus,
+    type: "varchar",
+    length: 20,
     default: AdminInvitationStatus.PENDING,
   })
   status: AdminInvitationStatus;

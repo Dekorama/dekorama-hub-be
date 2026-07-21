@@ -56,9 +56,9 @@ npm start
 | `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` | local postgres | **Required in production** |
 | `DB_SSL` | `false` | `true` on Render |
 | `DB_SYNCHRONIZE` | off in prod | Set `true` on Render until migrations |
-| `JWT_SECRET` | — | **Required in production** (admin invite HMAC) |
+| `JWT_SECRET` | — | **Required in production** (session fallback) |
 | `SESSION_SECRET` | falls back to JWT | Session cookie HMAC |
-| `INVITATION_TOKEN_SECRET` | — | **Required in production** |
+| `INVITATION_TOKEN_SECRET` | — | **Required in production** (invite HMAC) |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | Required for `npm run seed` |
 | `BREVO_API_KEY` | _(empty)_ | Transactional email |
 | `SESSION_TTL_MS` | 7 days | Session cookie lifetime |
