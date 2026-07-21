@@ -56,10 +56,33 @@ export class SuppliersService {
     return supplier;
   }
 
+  private normalizeContactList(values: string[] | undefined): string[] {
+    if (!values?.length) return [];
+    const seen = new Set<string>();
+    const result: string[] = [];
+    for (const raw of values) {
+      const value = raw.trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(value);
+    }
+    return result;
+  }
+
   async createSupplier(dto: CreateSupplierDto, user: User): Promise<Supplier> {
     this.requireAdmin(user);
+    const emails = this.normalizeContactList(dto.emails).filter(
+      (e) => e.toLowerCase() !== dto.email.trim().toLowerCase(),
+    );
+    const phones = this.normalizeContactList(dto.phones).filter(
+      (p) => !dto.phone || p.toLowerCase() !== dto.phone.trim().toLowerCase(),
+    );
     const supplier = this.supplierRepo.create({
       ...dto,
+      emails,
+      phones,
       market: dto.market ?? MarketCode.VE,
       taxExempt: dto.taxExempt ?? false,
       taxRate: dto.taxExempt ? 0 : (dto.taxRate ?? null),
@@ -74,7 +97,20 @@ export class SuppliersService {
   ): Promise<Supplier> {
     this.requireAdmin(user);
     const supplier = await this.findSupplier(id);
-    Object.assign(supplier, dto);
+    const { emails, phones, ...rest } = dto;
+    Object.assign(supplier, rest);
+    if (emails !== undefined) {
+      const primary = (rest.email ?? supplier.email).trim().toLowerCase();
+      supplier.emails = this.normalizeContactList(emails).filter(
+        (e) => e.toLowerCase() !== primary,
+      );
+    }
+    if (phones !== undefined) {
+      const primaryPhone = (rest.phone ?? supplier.phone ?? "").trim().toLowerCase();
+      supplier.phones = this.normalizeContactList(phones).filter(
+        (p) => !primaryPhone || p.toLowerCase() !== primaryPhone,
+      );
+    }
     if (supplier.taxExempt) supplier.taxRate = 0;
     return this.supplierRepo.save(supplier);
   }

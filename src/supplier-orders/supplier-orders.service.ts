@@ -271,7 +271,32 @@ export class SupplierOrdersService {
       doc.fontSize(12);
       doc.text(`Número: ${order.orderNumber}`);
       doc.text(`Proveedor: ${order.supplier.name}`);
-      doc.text(`Email: ${order.supplier.email}`);
+      if (order.supplier.documentNumber) {
+        const labels: Record<string, string> = {
+          dni: "DNI",
+          nie: "NIE",
+          nif: "NIF",
+          cif: "CIF",
+          cedula: "Cédula",
+          rif: "RIF",
+        };
+        const docLabel =
+          labels[order.supplier.documentType ?? ""] ??
+          (order.supplier.documentType ?? "Doc").toUpperCase();
+        doc.text(`${docLabel}: ${order.supplier.documentNumber}`);
+      }
+      const supplierEmails = [
+        order.supplier.email,
+        ...(order.supplier.emails ?? []),
+      ].filter(Boolean);
+      doc.text(`Email: ${supplierEmails.join(", ")}`);
+      const supplierPhones = [
+        order.supplier.phone,
+        ...(order.supplier.phones ?? []),
+      ].filter(Boolean);
+      if (supplierPhones.length > 0) {
+        doc.text(`Teléfono: ${supplierPhones.join(", ")}`);
+      }
       doc.text(`Pedido cliente: ${order.clientOrder?.orderNumber ?? "—"}`);
       doc.text(`Fecha: ${new Date().toLocaleDateString("es-ES")}`);
       doc.moveDown();
@@ -301,8 +326,13 @@ export class SupplierOrdersService {
     const order = await this.findById(id);
     const pdfBuffer = await this.generatePdf(id);
 
-    const sent = await this.emailService.sendSupplierOrder(
+    const recipientEmails = [
       order.supplier.email,
+      ...(order.supplier.emails ?? []),
+    ].filter(Boolean);
+
+    const sent = await this.emailService.sendSupplierOrder(
+      recipientEmails,
       order.supplier.name,
       order.orderNumber,
       pdfBuffer,
@@ -442,6 +472,7 @@ export class SupplierOrdersService {
             id: fc.supplier.id,
             name: fc.supplier.name,
             email: fc.supplier.email,
+            emails: fc.supplier.emails ?? [],
           },
           lines: [line],
           estimatedTotal: line.unitCost! * quantityPending,

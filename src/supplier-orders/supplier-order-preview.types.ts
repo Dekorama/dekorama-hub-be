@@ -9,7 +9,7 @@ export interface SupplierPreviewLine {
 }
 
 export interface SupplierPreviewGroup {
-  supplier: { id: string; name: string; email: string };
+  supplier: { id: string; name: string; email: string; emails?: string[] };
   lines: SupplierPreviewLine[];
   estimatedTotal: number;
 }

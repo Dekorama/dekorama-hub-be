@@ -1,7 +1,9 @@
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -12,14 +14,42 @@ import {
 } from "class-validator";
 import { MarketCode } from "../common/market";
 
+export const SUPPLIER_LEGAL_TYPES = ["particular", "empresa"] as const;
+export const SUPPLIER_DOCUMENT_TYPES = [
+  "dni",
+  "nie",
+  "nif",
+  "cif",
+  "cedula",
+  "rif",
+] as const;
+
 export class CreateSupplierDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
   name!: string;
 
+  @IsOptional()
+  @IsIn(SUPPLIER_LEGAL_TYPES)
+  legalType?: (typeof SUPPLIER_LEGAL_TYPES)[number] | null;
+
+  @IsOptional()
+  @IsIn(SUPPLIER_DOCUMENT_TYPES)
+  documentType?: (typeof SUPPLIER_DOCUMENT_TYPES)[number] | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  documentNumber?: string | null;
+
   @IsEmail()
   email!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  emails?: string[];
 
   @IsOptional()
   @IsEnum(MarketCode)
@@ -29,6 +59,12 @@ export class CreateSupplierDto {
   @IsString()
   @MaxLength(50)
   phone?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  phones?: string[];
 
   @IsOptional()
   @IsString()
@@ -60,12 +96,36 @@ export class UpdateSupplierDto {
   name?: string;
 
   @IsOptional()
+  @IsIn(SUPPLIER_LEGAL_TYPES)
+  legalType?: (typeof SUPPLIER_LEGAL_TYPES)[number] | null;
+
+  @IsOptional()
+  @IsIn(SUPPLIER_DOCUMENT_TYPES)
+  documentType?: (typeof SUPPLIER_DOCUMENT_TYPES)[number] | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  documentNumber?: string | null;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  emails?: string[];
+
+  @IsOptional()
   @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  phones?: string[];
 
   @IsOptional()
   @IsString()

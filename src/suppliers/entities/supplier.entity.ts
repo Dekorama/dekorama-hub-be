@@ -18,11 +18,30 @@ export class Supplier {
   @Column({ type: "varchar", length: 255 })
   name!: string;
 
+  /** particular | empresa — drives which fiscal document types apply. */
+  @Column({ type: "varchar", length: 20, nullable: true })
+  legalType!: string | null;
+
+  /** dni | nie | nif | cif | cedula | rif */
+  @Column({ type: "varchar", length: 20, nullable: true })
+  documentType!: string | null;
+
+  @Column({ type: "varchar", length: 50, nullable: true })
+  documentNumber!: string | null;
+
   @Column({ type: "varchar", length: 255 })
   email!: string;
 
+  /** Extra emails beyond the primary `email`. */
+  @Column({ type: "jsonb", default: [] })
+  emails!: string[];
+
   @Column({ type: "varchar", length: 50, nullable: true })
   phone!: string | null;
+
+  /** Extra phones beyond the primary `phone`. */
+  @Column({ type: "jsonb", default: [] })
+  phones!: string[];
 
   @Column({ type: "text", nullable: true })
   address!: string | null;

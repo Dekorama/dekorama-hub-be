@@ -160,14 +160,17 @@ export class EmailService {
   }
 
   async sendSupplierOrder(
-    to: string,
+    to: string | string[],
     supplierName: string,
     orderNumber: string,
     pdfBuffer: Buffer,
   ): Promise<boolean> {
-    this.logger.log(`[EMAIL] Sending PO ${orderNumber} to ${to}`);
+    const recipients = (Array.isArray(to) ? to : [to])
+      .map((e) => e.trim())
+      .filter(Boolean);
+    this.logger.log(`[EMAIL] Sending PO ${orderNumber} to ${recipients.join(", ")}`);
     return this.sendWithAttachment(
-      to,
+      recipients,
       `Pedido ${orderNumber} - Dekorama`,
       `<p>Hola ${supplierName},</p><p>Adjuntamos pedido ${orderNumber}.</p>`,
       pdfBuffer,
@@ -176,7 +179,7 @@ export class EmailService {
   }
 
   private async sendWithAttachment(
-    to: string,
+    to: string | string[],
     subject: string,
     htmlContent: string,
     pdfBuffer: Buffer,
@@ -184,6 +187,16 @@ export class EmailService {
   ): Promise<boolean> {
     if (!this.brevoApiKey) {
       this.logger.log("[EMAIL] No API key - email not sent (dev mode)");
+      return false;
+    }
+
+    const recipients = (Array.isArray(to) ? to : [to])
+      .map((e) => e.trim())
+      .filter(Boolean)
+      .map((email) => ({ email }));
+
+    if (recipients.length === 0) {
+      this.logger.warn("[EMAIL] No recipients provided");
       return false;
     }
 
@@ -195,7 +208,7 @@ export class EmailService {
       },
       body: JSON.stringify({
         sender: { name: this.fromName, email: this.fromEmail },
-        to: [{ email: to }],
+        to: recipients,
         subject,
         htmlContent,
         attachment: [{ content: pdfBuffer.toString("base64"), name: filename }],
