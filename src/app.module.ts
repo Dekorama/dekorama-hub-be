@@ -30,6 +30,7 @@ import { MarketSettings } from "./admin/entities/market-settings.entity";
 import { CartItem } from "./cart/cart.entity";
 import { Supplier } from "./suppliers/entities/supplier.entity";
 import { FactoryCode } from "./suppliers/entities/factory-code.entity";
+import { SupplierFamily } from "./suppliers/entities/supplier-family.entity";
 import { ClientOrder } from "./orders/entities/client-order.entity";
 import { ClientOrderLineItem } from "./orders/entities/client-order-line-item.entity";
 import { SupplierOrder } from "./supplier-orders/entities/supplier-order.entity";
@@ -105,6 +106,7 @@ import { ExportsModule } from "./exports/exports.module";
           CartItem,
           Supplier,
           FactoryCode,
+          SupplierFamily,
           ClientOrder,
           ClientOrderLineItem,
           SupplierOrder,

@@ -13,6 +13,7 @@ import { User, UserRole } from "../users/user.entity";
 import { MarketCode } from "../common/market";
 import { Supplier } from "../suppliers/entities/supplier.entity";
 import { FactoryCode } from "../suppliers/entities/factory-code.entity";
+import { SupplierFamily } from "../suppliers/entities/supplier-family.entity";
 import {
   CreateProductDto,
   UpdateProductDto,
@@ -35,7 +36,38 @@ export class ProductsService {
     private readonly supplierRepo: Repository<Supplier>,
     @InjectRepository(FactoryCode)
     private readonly factoryCodeRepo: Repository<FactoryCode>,
+    @InjectRepository(SupplierFamily)
+    private readonly supplierFamilyRepo: Repository<SupplierFamily>,
   ) {}
+
+  private async assertSupplierLinkedToFamily(
+    supplierId: string,
+    familyCode: string,
+  ): Promise<void> {
+    await this.ensureSupplierFamilyLink(supplierId, familyCode);
+  }
+
+  /** Upsert junction so product create can link supplier ↔ family on the fly. */
+  private async ensureSupplierFamilyLink(
+    supplierId: string,
+    familyCode: string,
+  ): Promise<void> {
+    const existing = await this.supplierFamilyRepo.findOneBy({
+      supplierId,
+      familyCode,
+    });
+    if (existing) return;
+
+    const family = await this.familyRepo.findOneBy({ code: familyCode });
+    if (!family) throw new BadRequestException("Familia no válida");
+
+    const supplier = await this.supplierRepo.findOneBy({ id: supplierId });
+    if (!supplier) throw new BadRequestException("Proveedor no válido");
+
+    await this.supplierFamilyRepo.save(
+      this.supplierFamilyRepo.create({ supplierId, familyCode }),
+    );
+  }
 
   async list(
     search?: string,
@@ -210,6 +242,14 @@ export class ProductsService {
       throw new BadRequestException("Proveedor y código de fábrica son obligatorios");
     }
 
+    await this.assertSupplierLinkedToFamily(dto.supplierId, dto.family);
+
+    const supplier = await this.supplierRepo.findOneBy({ id: dto.supplierId });
+    if (!supplier) throw new BadRequestException("Proveedor no válido");
+    if (!supplier.prefix) {
+      throw new BadRequestException("Proveedor sin prefijo configurado");
+    }
+
     const subfamily = await this.ensureSubfamilyForSupplier(dto.family, dto.supplierId);
 
     const pricingMode = dto.pricingMode ?? PricingMode.NETO;
@@ -229,7 +269,7 @@ export class ProductsService {
     }
 
     const market = dto.market ?? MarketCode.VE;
-    const sku = await this.generateSku(dto.family, subfamily.code);
+    const sku = await this.generateSku(supplier.prefix);
 
     const product = this.repo.create({
       name: dto.name,
@@ -263,11 +303,13 @@ export class ProductsService {
     return saved;
   }
 
-  private async generateSku(family: string, subfamily: string): Promise<string> {
-    const last = await this.repo.findOne({
-      where: { family, subfamily },
-      order: { sku: "DESC" },
-    });
+  private async generateSku(prefix: string): Promise<string> {
+    const normalized = prefix.toUpperCase();
+    const last = await this.repo
+      .createQueryBuilder("p")
+      .where("p.sku LIKE :pattern", { pattern: `${normalized}-%` })
+      .orderBy("p.sku", "DESC")
+      .getOne();
 
     let sequentialId = 1;
     if (last?.sku) {
@@ -277,7 +319,7 @@ export class ProductsService {
       }
     }
 
-    return `DKM-${family}-${subfamily}-${String(sequentialId).padStart(5, "0")}`;
+    return `${normalized}-${String(sequentialId).padStart(5, "0")}`;
   }
 
   async update(
@@ -343,6 +385,7 @@ export class ProductsService {
     }
 
     if (supplierId) {
+      await this.assertSupplierLinkedToFamily(supplierId, product.family);
       const subfamily = await this.ensureSubfamilyForSupplier(product.family, supplierId);
       product.subfamily = subfamily.code;
       product.subfamilyName = subfamily.name;
@@ -400,9 +443,62 @@ export class ProductsService {
 
   async createFamily(dto: CreateFamilyDto, admin: User): Promise<ProductFamily> {
     if (admin.role !== UserRole.ADMIN) throw new ForbiddenException("Solo administradores");
-    const existing = await this.familyRepo.findOneBy({ code: dto.code });
+    const code = dto.code
+      ? dto.code.trim().toUpperCase()
+      : await this.generateUniqueFamilyCode(dto.name);
+    if (code.length !== 3) {
+      throw new BadRequestException("Código familia: 3 caracteres");
+    }
+    const existing = await this.familyRepo.findOneBy({ code });
     if (existing) throw new BadRequestException("Familia ya existe");
-    return this.familyRepo.save(this.familyRepo.create(dto));
+    return this.familyRepo.save(
+      this.familyRepo.create({
+        code,
+        name: dto.name,
+        description: dto.description ?? null,
+        icon: dto.icon ?? null,
+      }),
+    );
+  }
+
+  private async generateUniqueFamilyCode(name: string): Promise<string> {
+    const letters = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+
+    const wordStarts = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .split(/[^A-Z0-9]+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .join("");
+
+    const candidates: string[] = [];
+    if (wordStarts.length >= 3) candidates.push(wordStarts.slice(0, 3));
+    if (letters.length >= 3) candidates.push(letters.slice(0, 3));
+    if (letters.length >= 2) candidates.push((letters + "X").slice(0, 3));
+    if (letters.length >= 1) candidates.push((letters[0] + "00").slice(0, 3));
+    candidates.push("FAM");
+
+    for (const base of candidates) {
+      const code = base.padEnd(3, "X").slice(0, 3);
+      const taken = await this.familyRepo.findOneBy({ code });
+      if (!taken) return code;
+    }
+
+    for (let i = 0; i < 26; i++) {
+      for (let j = 0; j < 100; j++) {
+        const code = `${String.fromCharCode(65 + i)}${String(j).padStart(2, "0")}`;
+        const taken = await this.familyRepo.findOneBy({ code });
+        if (!taken) return code;
+      }
+    }
+
+    throw new BadRequestException("No se pudo generar código de familia");
   }
 
   async updateFamily(code: string, dto: UpdateFamilyDto, admin: User): Promise<ProductFamily> {

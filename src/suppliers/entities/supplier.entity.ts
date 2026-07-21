@@ -6,6 +6,7 @@ import {
 } from "typeorm";
 import { MarketCode } from "../../common/market";
 import { FactoryCode } from "./factory-code.entity";
+import { SupplierFamily } from "./supplier-family.entity";
 
 @Entity({ name: "suppliers" })
 export class Supplier {
@@ -14,6 +15,10 @@ export class Supplier {
 
   @Column({ type: "enum", enum: MarketCode, default: MarketCode.VE })
   market!: MarketCode;
+
+  /** 3-letter business prefix used in product SKUs: {prefix}-{#####} */
+  @Column({ type: "varchar", length: 3, unique: true, nullable: true })
+  prefix!: string | null;
 
   @Column({ type: "varchar", length: 255 })
   name!: string;
@@ -63,6 +68,9 @@ export class Supplier {
 
   @OneToMany(() => FactoryCode, (fc) => fc.supplier)
   factoryCodes!: FactoryCode[];
+
+  @OneToMany(() => SupplierFamily, (sf) => sf.supplier)
+  familyLinks!: SupplierFamily[];
 
   @Column({ type: "timestamp with time zone", default: () => "now()" })
   createdAt!: Date;

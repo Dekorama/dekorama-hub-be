@@ -8,6 +8,7 @@ import { ProductsController } from "./products.controller";
 import { AuthModule } from "../auth/auth.module";
 import { Supplier } from "../suppliers/entities/supplier.entity";
 import { FactoryCode } from "../suppliers/entities/factory-code.entity";
+import { SupplierFamily } from "../suppliers/entities/supplier-family.entity";
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { FactoryCode } from "../suppliers/entities/factory-code.entity";
       ProductSubfamily,
       Supplier,
       FactoryCode,
+      SupplierFamily,
     ]),
     AuthModule,
   ],

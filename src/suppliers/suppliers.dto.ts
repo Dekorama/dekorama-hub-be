@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   MaxLength,
   Min,
 } from "class-validator";
@@ -29,6 +30,18 @@ export class CreateSupplierDto {
   @IsNotEmpty()
   @MaxLength(255)
   name!: string;
+
+  /** 3-letter SKU prefix (unique). */
+  @IsString()
+  @IsNotEmpty()
+  @Length(3, 3)
+  prefix!: string;
+
+  /** Families this supplier serves (1:N). */
+  @IsArray()
+  @IsString({ each: true })
+  @Length(3, 3, { each: true })
+  familyCodes!: string[];
 
   @IsOptional()
   @IsIn(SUPPLIER_LEGAL_TYPES)
@@ -94,6 +107,17 @@ export class UpdateSupplierDto {
   @IsString()
   @MaxLength(255)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  prefix?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Length(3, 3, { each: true })
+  familyCodes?: string[];
 
   @IsOptional()
   @IsIn(SUPPLIER_LEGAL_TYPES)

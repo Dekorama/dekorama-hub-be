@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { Supplier } from "./entities/supplier.entity";
 import { FactoryCode } from "./entities/factory-code.entity";
+import { SupplierFamily } from "./entities/supplier-family.entity";
 import { Product } from "../products/product.entity";
+import { ProductFamily } from "../products/entities/product-family.entity";
 import { User, UserRole } from "../users/user.entity";
 import { MarketCode } from "../common/market";
 import {
@@ -18,6 +20,8 @@ import {
   UpdateSupplierDto,
 } from "./suppliers.dto";
 
+export type SupplierWithFamilies = Supplier & { familyCodes: string[] };
+
 @Injectable()
 export class SuppliersService {
   constructor(
@@ -25,6 +29,10 @@ export class SuppliersService {
     private readonly supplierRepo: Repository<Supplier>,
     @InjectRepository(FactoryCode)
     private readonly factoryCodeRepo: Repository<FactoryCode>,
+    @InjectRepository(SupplierFamily)
+    private readonly supplierFamilyRepo: Repository<SupplierFamily>,
+    @InjectRepository(ProductFamily)
+    private readonly familyRepo: Repository<ProductFamily>,
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
   ) {}
@@ -35,25 +43,114 @@ export class SuppliersService {
     }
   }
 
-  async listSuppliers(includeInactive = false, market?: MarketCode): Promise<Supplier[]> {
+  private normalizePrefix(raw: string): string {
+    const prefix = raw
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 3);
+    if (prefix.length !== 3) {
+      throw new BadRequestException("Prefijo debe ser 3 letras/números");
+    }
+    return prefix;
+  }
+
+  private async assertFamiliesExist(familyCodes: string[]): Promise<string[]> {
+    const codes = [
+      ...new Set(familyCodes.map((c) => c.trim().toUpperCase()).filter(Boolean)),
+    ];
+    if (codes.length === 0) {
+      throw new BadRequestException("El proveedor debe enlazarse al menos a una familia");
+    }
+    const found = await this.familyRepo.findBy({ code: In(codes) });
+    if (found.length !== codes.length) {
+      const foundSet = new Set(found.map((f) => f.code));
+      const missing = codes.filter((c) => !foundSet.has(c));
+      throw new BadRequestException(`Familias no válidas: ${missing.join(", ")}`);
+    }
+    return codes;
+  }
+
+  private async syncFamilyLinks(
+    supplierId: string,
+    familyCodes: string[],
+  ): Promise<void> {
+    await this.supplierFamilyRepo.delete({ supplierId });
+    if (familyCodes.length === 0) return;
+    await this.supplierFamilyRepo.save(
+      familyCodes.map((familyCode) =>
+        this.supplierFamilyRepo.create({ supplierId, familyCode }),
+      ),
+    );
+  }
+
+  private async withFamilyCodes(
+    suppliers: Supplier[],
+  ): Promise<SupplierWithFamilies[]> {
+    if (suppliers.length === 0) return [];
+    const ids = suppliers.map((s) => s.id);
+    const links = await this.supplierFamilyRepo.find({
+      where: { supplierId: In(ids) },
+    });
+    const bySupplier = new Map<string, string[]>();
+    for (const link of links) {
+      const list = bySupplier.get(link.supplierId) ?? [];
+      list.push(link.familyCode);
+      bySupplier.set(link.supplierId, list);
+    }
+    return suppliers.map((s) =>
+      Object.assign(s, { familyCodes: bySupplier.get(s.id) ?? [] }),
+    );
+  }
+
+  async listSuppliers(
+    includeInactive = false,
+    market?: MarketCode,
+    familyCode?: string,
+  ): Promise<SupplierWithFamilies[]> {
+    const qb = this.supplierRepo.createQueryBuilder("s").orderBy("s.name", "ASC");
+
     if (market) {
-      const qb = this.supplierRepo.createQueryBuilder("s").orderBy("s.name", "ASC");
       qb.where("(s.market = :market OR (s.market IS NULL AND :market = :ve))", {
         market,
         ve: MarketCode.VE,
       });
-      if (!includeInactive) qb.andWhere("s.isActive = :active", { active: true });
-      return qb.getMany();
     }
 
-    const where: Record<string, unknown> = includeInactive ? {} : { isActive: true };
-    return this.supplierRepo.find({ where: where as never, order: { name: "ASC" } });
+    if (!includeInactive) {
+      qb.andWhere("s.isActive = :active", { active: true });
+    }
+
+    if (familyCode) {
+      qb.innerJoin(
+        SupplierFamily,
+        "sf",
+        "sf.supplierId = s.id AND sf.familyCode = :familyCode",
+        { familyCode: familyCode.toUpperCase() },
+      );
+    }
+
+    const suppliers = await qb.getMany();
+    return this.withFamilyCodes(suppliers);
   }
 
-  async findSupplier(id: string): Promise<Supplier> {
+  async findSupplier(id: string): Promise<SupplierWithFamilies> {
     const supplier = await this.supplierRepo.findOneBy({ id });
     if (!supplier) throw new NotFoundException("Proveedor no encontrado");
-    return supplier;
+    const [withFamilies] = await this.withFamilyCodes([supplier]);
+    return withFamilies;
+  }
+
+  async isSupplierLinkedToFamily(
+    supplierId: string,
+    familyCode: string,
+  ): Promise<boolean> {
+    const link = await this.supplierFamilyRepo.findOneBy({
+      supplierId,
+      familyCode: familyCode.toUpperCase(),
+    });
+    return !!link;
   }
 
   private normalizeContactList(values: string[] | undefined): string[] {
@@ -71,34 +168,62 @@ export class SuppliersService {
     return result;
   }
 
-  async createSupplier(dto: CreateSupplierDto, user: User): Promise<Supplier> {
+  async createSupplier(
+    dto: CreateSupplierDto,
+    user: User,
+  ): Promise<SupplierWithFamilies> {
     this.requireAdmin(user);
+    const prefix = this.normalizePrefix(dto.prefix);
+    const taken = await this.supplierRepo.findOneBy({ prefix });
+    if (taken) throw new BadRequestException(`Prefijo ${prefix} ya en uso`);
+
+    const familyCodes = await this.assertFamiliesExist(dto.familyCodes);
+
     const emails = this.normalizeContactList(dto.emails).filter(
       (e) => e.toLowerCase() !== dto.email.trim().toLowerCase(),
     );
     const phones = this.normalizeContactList(dto.phones).filter(
       (p) => !dto.phone || p.toLowerCase() !== dto.phone.trim().toLowerCase(),
     );
+
+    const { familyCodes: _fc, prefix: _p, ...rest } = dto;
     const supplier = this.supplierRepo.create({
-      ...dto,
+      ...rest,
+      prefix,
       emails,
       phones,
       market: dto.market ?? MarketCode.VE,
       taxExempt: dto.taxExempt ?? false,
       taxRate: dto.taxExempt ? 0 : (dto.taxRate ?? null),
     });
-    return this.supplierRepo.save(supplier);
+    const saved = await this.supplierRepo.save(supplier);
+    await this.syncFamilyLinks(saved.id, familyCodes);
+    return this.findSupplier(saved.id);
   }
 
   async updateSupplier(
     id: string,
     dto: UpdateSupplierDto,
     user: User,
-  ): Promise<Supplier> {
+  ): Promise<SupplierWithFamilies> {
     this.requireAdmin(user);
-    const supplier = await this.findSupplier(id);
-    const { emails, phones, ...rest } = dto;
+    const supplier = await this.supplierRepo.findOneBy({ id });
+    if (!supplier) throw new NotFoundException("Proveedor no encontrado");
+
+    const { emails, phones, familyCodes, prefix, ...rest } = dto;
     Object.assign(supplier, rest);
+
+    if (prefix !== undefined) {
+      const normalized = this.normalizePrefix(prefix);
+      if (normalized !== supplier.prefix) {
+        const taken = await this.supplierRepo.findOneBy({ prefix: normalized });
+        if (taken && taken.id !== id) {
+          throw new BadRequestException(`Prefijo ${normalized} ya en uso`);
+        }
+        supplier.prefix = normalized;
+      }
+    }
+
     if (emails !== undefined) {
       const primary = (rest.email ?? supplier.email).trim().toLowerCase();
       supplier.emails = this.normalizeContactList(emails).filter(
@@ -112,12 +237,21 @@ export class SuppliersService {
       );
     }
     if (supplier.taxExempt) supplier.taxRate = 0;
-    return this.supplierRepo.save(supplier);
+
+    await this.supplierRepo.save(supplier);
+
+    if (familyCodes !== undefined) {
+      const codes = await this.assertFamiliesExist(familyCodes);
+      await this.syncFamilyLinks(id, codes);
+    }
+
+    return this.findSupplier(id);
   }
 
   async deleteSupplier(id: string, user: User): Promise<void> {
     this.requireAdmin(user);
-    const supplier = await this.findSupplier(id);
+    const supplier = await this.supplierRepo.findOneBy({ id });
+    if (!supplier) throw new NotFoundException("Proveedor no encontrado");
     await this.supplierRepo.remove(supplier);
   }
 

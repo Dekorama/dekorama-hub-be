@@ -68,10 +68,12 @@ export class SuppliersController {
   list(
     @Query("includeInactive") includeInactive?: string,
     @Query("market") market?: string,
+    @Query("familyCode") familyCode?: string,
   ) {
     return this.suppliersService.listSuppliers(
       includeInactive === "true",
       parseMarketFilter(market),
+      familyCode,
     );
   }
 

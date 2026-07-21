@@ -2,7 +2,9 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "../users/user.entity";
 import { Product } from "../products/product.entity";
+import { ProductSubfamily } from "../products/entities/product-subfamily.entity";
 import { Supplier } from "../suppliers/entities/supplier.entity";
+import { SupplierFamily } from "../suppliers/entities/supplier-family.entity";
 import { Project } from "../projects/project.entity";
 import { ClientOrderLineItem } from "../orders/entities/client-order-line-item.entity";
 import { FactoryCode } from "../suppliers/entities/factory-code.entity";
@@ -22,7 +24,9 @@ import { ProjectsModule } from "../projects/projects.module";
       AdminInvitation,
       MarketSettings,
       Product,
+      ProductSubfamily,
       Supplier,
+      SupplierFamily,
       Project,
       ClientOrderLineItem,
       FactoryCode,

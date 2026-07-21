@@ -172,10 +172,11 @@ export class SubfamilyDto {
 }
 
 export class CreateFamilyDto {
+  /** Optional technical ID (3 chars). Auto-generated from name if omitted. */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @Length(3, 3)
-  code!: string;
+  code?: string;
 
   @IsString()
   @IsNotEmpty()
