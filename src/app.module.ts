@@ -53,32 +53,52 @@ import { SupplierOrdersModule } from "./supplier-orders/supplier-orders.module";
 import { ReportsModule } from "./reports/reports.module";
 import { ExportsModule } from "./exports/exports.module";
 import { GcsModule } from "./gcs/gcs.module";
+import { preSyncFixMaterialLists } from "./common/pre-sync-fix";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     GcsModule,
     TypeOrmModule.forRootAsync({
-      useFactory: () => {
+      useFactory: async () => {
         const isProd = process.env.NODE_ENV === "production";
         const useSsl = process.env.DB_SSL === "true";
         const host = process.env.DB_HOST;
         const username = process.env.DB_USER;
         const password = process.env.DB_PASSWORD;
         const database = process.env.DB_NAME;
+        const port = +(process.env.DB_PORT ?? 5432);
 
         if (isProd && (!host || !username || !password || !database)) {
           throw new Error("DB_HOST, DB_USER, DB_PASSWORD, and DB_NAME are required in production");
         }
 
+        const ssl = useSsl ? { rejectUnauthorized: false } : undefined;
+
+        // Run before TypeORM synchronize so NOT NULL column rebuilds succeed.
+        try {
+          await preSyncFixMaterialLists({
+            host: host ?? "localhost",
+            port,
+            username: username ?? "postgres",
+            password: password ?? "postgres",
+            database: database ?? "dekorama",
+            ssl,
+          });
+        } catch (err) {
+          // Table may not exist yet on first boot; synchronize will create it.
+          // eslint-disable-next-line no-console
+          console.warn("[pre-sync] material_lists fix skipped:", err);
+        }
+
         return {
         type: "postgres" as const,
         host: host ?? "localhost",
-        port: +(process.env.DB_PORT ?? 5432),
+        port,
         username: username ?? "postgres",
         password: password ?? "postgres",
         database: database ?? "dekorama",
-        ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+        ssl,
         autoLoadEntities: true,
         entities: [
           User,

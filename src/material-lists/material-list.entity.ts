@@ -40,7 +40,7 @@ export class MaterialList {
   @Column({ type: "varchar", length: 50, default: "unidad" })
   unit!: string;
 
-  @Column({ type: "numeric", precision: 12, scale: 4 })
+  @Column({ type: "numeric", precision: 12, scale: 4, default: 0 })
   quantity!: number;
 
   /** Quantity already converted into client orders */
@@ -52,7 +52,7 @@ export class MaterialList {
   discountPct!: number;
 
   // Snapshot of price at time of adding, preserved even if Product.price changes later
-  @Column({ type: "numeric", precision: 12, scale: 2 })
+  @Column({ type: "numeric", precision: 12, scale: 2, default: 0 })
   suggestedPrice!: number;
 
   /** Visible to client */
