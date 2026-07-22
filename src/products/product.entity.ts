@@ -74,7 +74,7 @@ export class Product {
   @Column({ type: "int", nullable: true })
   piecesPerBox!: number | null;
 
-  /** Cobertura de una pieza en la unidad del producto (ej. m²/pieza). */
+  /** Cobertura total de la caja en la unidad del producto (ej. m²/caja). Column name legacy. */
   @Column({ type: "numeric", precision: 12, scale: 4, nullable: true })
   unitPerPiece!: number | null;
 

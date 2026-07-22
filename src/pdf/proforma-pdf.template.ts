@@ -6,7 +6,6 @@ import {
   boxesForM2,
   displayUnit,
   lineNetTotal,
-  m2PerBox,
   normalizeUnit,
 } from "../common/line-item.utils";
 import {
@@ -30,10 +29,14 @@ function m2BoxSubNote(
   packaging?: ProductPackaging | null,
 ): string | undefined {
   if (!packaging) return undefined;
-  const perBox = m2PerBox(packaging.piecesPerBox, packaging.unitPerPiece);
-  if (perBox == null) return undefined;
-  const boxes = boxesForM2(quantity, perBox);
-  return `Equivale a ${boxes} caja(s) (${perBox.toFixed(4)} m²/caja)`;
+  const pieces = Number(packaging.piecesPerBox);
+  // DB column `unitPerPiece` = cobertura total de la caja (m²/caja), no por pieza.
+  const m2PorCaja = Number(packaging.unitPerPiece);
+  if (!Number.isFinite(pieces) || pieces < 1) return undefined;
+  if (!Number.isFinite(m2PorCaja) || m2PorCaja <= 0) return undefined;
+
+  const boxes = boxesForM2(quantity, m2PorCaja);
+  return `Equivale a ${boxes} caja(s) (${m2PorCaja.toFixed(4)} m²/caja · ${pieces} pz)`;
 }
 
 function materialToLineItem(

@@ -78,7 +78,7 @@ export class ProductsService {
       Number(unitPerPiece) <= 0
     ) {
       throw new BadRequestException(
-        "Unidad m2 requiere cobertura por pieza (> 0)",
+        "Unidad m2 requiere cobertura por caja en m² (> 0)",
       );
     }
   }

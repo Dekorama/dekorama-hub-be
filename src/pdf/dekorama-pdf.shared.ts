@@ -92,7 +92,7 @@ export function getClientProfile(client: User): {
     phone: pd.phone ?? pd.telefono ?? "",
     address: pd.address ?? pd.direccion ?? "",
     city: pd.city ?? pd.locality ?? pd.localidad ?? "",
-    province: pd.province ?? pd.provincia ?? "MALAGA",
+    province: pd.province ?? pd.provincia ?? "",
     clientCode: pd.clientCode ?? client.id.slice(0, 5).toUpperCase(),
     documentType,
     documentNumber,

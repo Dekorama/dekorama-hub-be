@@ -22,6 +22,7 @@ import { EmailService } from "../email/email.service";
 import { AdminInvitation, AdminInvitationStatus } from "./entities/admin-invitation.entity";
 import { InviteAdminDto, AcceptAdminInvitationResponseDto } from "./dto/admin-invitation.dto";
 import { CreateClientDto } from "./dto/create-client.dto";
+import { UpdateClientDto } from "./dto/update-client.dto";
 import { UpdateMarketSettingsDto } from "./dto/market-settings.dto";
 import { MarketSettingsService } from "./market-settings.service";
 import { isMarketCode, MarketCode } from "../common/market";
@@ -35,11 +36,6 @@ import { readSessionUserId } from "../auth/session";
 
 class VerifyUserDto {
   isVerified!: boolean;
-}
-
-class UpdateClientTaxDto {
-  taxRate?: number | null;
-  taxExempt?: boolean;
 }
 
 @Controller("admin")
@@ -159,12 +155,29 @@ export class AdminController {
   @Patch("users/:id")
   async updateUser(
     @Param("id") id: string,
-    @Body() body: UpdateClientTaxDto,
+    @Body() body: UpdateClientDto,
     @Req() req: Request,
   ) {
     await this.requireAdmin(req);
     const user = await this.usersRepo.findOneBy({ id });
     if (!user) throw new BadRequestException("Usuario no encontrado");
+
+    if (body.name !== undefined) {
+      const name = body.name.trim();
+      if (!name) throw new BadRequestException("Nombre inválido");
+      user.name = name;
+    }
+
+    if (body.email !== undefined) {
+      const email = body.email.trim().toLowerCase();
+      if (!email) throw new BadRequestException("Email inválido");
+      const existing = await this.usersRepo.findOneBy({ email });
+      if (existing && existing.id !== user.id) {
+        throw new BadRequestException("Ya existe un usuario con ese email");
+      }
+      user.email = email;
+    }
+
     if (body.taxExempt !== undefined) {
       user.taxExempt = body.taxExempt;
       if (body.taxExempt) user.taxRate = 0;
@@ -172,7 +185,26 @@ export class AdminController {
     if (body.taxRate !== undefined && !user.taxExempt) {
       user.taxRate = body.taxRate;
     }
-    return this.usersRepo.save(user);
+
+    if (body.profileData !== undefined) {
+      const current =
+        user.profileData && typeof user.profileData === "object"
+          ? { ...(user.profileData as Record<string, unknown>) }
+          : {};
+      const next = { ...current, ...body.profileData };
+      // Drop empty string keys so optional fields can be cleared
+      for (const key of Object.keys(next)) {
+        const val = next[key];
+        if (val === "" || val === null || val === undefined) {
+          delete next[key];
+        }
+      }
+      user.profileData = Object.keys(next).length > 0 ? next : null;
+    }
+
+    const saved = await this.usersRepo.save(user);
+    const { passwordHash: _pw, ...safe } = saved;
+    return safe;
   }
 
   @Post("clients")
