@@ -35,6 +35,7 @@ import {
 import { generateSequentialNumber } from "../common/generate-sequential-number";
 import { MarketCode } from "../common/market";
 import { MarketSettingsService } from "../admin/market-settings.service";
+import { GcsService } from "../gcs/gcs.service";
 import {
   GenerateAllSupplierOrdersResult,
   SupplierPreviewGroup,
@@ -63,6 +64,7 @@ export class SupplierOrdersService {
     private readonly factoryCodeRepo: Repository<FactoryCode>,
     private readonly emailService: EmailService,
     private readonly marketSettingsService: MarketSettingsService,
+    private readonly gcs: GcsService,
   ) {}
 
   async list(
@@ -392,6 +394,23 @@ export class SupplierOrdersService {
     if (!invoice) throw new NotFoundException("Factura proveedor no encontrada");
     invoice.status = dto.status;
     return this.supplierInvoiceRepo.save(invoice);
+  }
+
+  async getSupplierInvoiceFileUrl(
+    id: string,
+    user: User,
+  ): Promise<{ url: string }> {
+    this.requireAdmin(user);
+    const invoice = await this.supplierInvoiceRepo.findOneBy({ id });
+    if (!invoice) throw new NotFoundException("Factura proveedor no encontrada");
+    if (!invoice.fileUrl) {
+      throw new NotFoundException("Esta factura no tiene archivo adjunto");
+    }
+    if (!this.gcs.isConfigured()) {
+      throw new BadRequestException("Google Cloud Storage no está configurado");
+    }
+    const url = await this.gcs.getSignedUrl("invoices", invoice.fileUrl, 60);
+    return { url };
   }
 
   private requireAdmin(user: User): void {

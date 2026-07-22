@@ -11,6 +11,7 @@ import { InvoicesService } from "./invoices.service";
 import { InvoicesController } from "./invoices.controller";
 import { AuthModule } from "../auth/auth.module";
 import { AdminModule } from "../admin/admin.module";
+import { GcsModule } from "../gcs/gcs.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AdminModule } from "../admin/admin.module";
     ]),
     AuthModule,
     AdminModule,
+    GcsModule,
   ],
   controllers: [InvoicesController],
   providers: [InvoicesService],

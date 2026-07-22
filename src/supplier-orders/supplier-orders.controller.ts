@@ -117,4 +117,9 @@ export class SupplierOrdersController {
   ) {
     return this.supplierOrdersService.updateSupplierInvoiceStatus(id, dto, user);
   }
+
+  @Get("invoices/:id/file")
+  getInvoiceFile(@Param("id") id: string, @CurrentUser() user: User) {
+    return this.supplierOrdersService.getSupplierInvoiceFileUrl(id, user);
+  }
 }

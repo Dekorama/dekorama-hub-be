@@ -12,6 +12,7 @@ import { SupplierOrdersController } from "./supplier-orders.controller";
 import { AuthModule } from "../auth/auth.module";
 import { EmailModule } from "../email/email.module";
 import { AdminModule } from "../admin/admin.module";
+import { GcsModule } from "../gcs/gcs.module";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { AdminModule } from "../admin/admin.module";
     AuthModule,
     EmailModule,
     AdminModule,
+    GcsModule,
   ],
   controllers: [SupplierOrdersController],
   providers: [SupplierOrdersService],

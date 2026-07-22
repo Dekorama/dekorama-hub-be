@@ -38,5 +38,9 @@ tmp/
 temp/
 *.pid
 
+# GCS / secrets
+*-gcs-key.json
+secrets/
+
 # Docker volume leftovers (if mounted locally)
 pgdata/

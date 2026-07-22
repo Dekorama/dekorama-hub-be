@@ -159,6 +159,7 @@ export class InvoiceResponseDto {
   total!: number;
   status!: InvoiceStatus;
   notes!: string | null;
+  pdfUrl?: string | null;
   createdBy!: string;
   createdByName?: string;
   lineItems!: Array<{

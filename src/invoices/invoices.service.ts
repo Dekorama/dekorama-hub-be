@@ -25,6 +25,7 @@ import { generateInvoicePdfBuffer } from "./invoice-pdf.template";
 import { generateSequentialNumber } from "../common/generate-sequential-number";
 import { MarketSettingsService } from "../admin/market-settings.service";
 import { MarketCode } from "../common/market";
+import { GcsService } from "../gcs/gcs.service";
 
 @Injectable()
 export class InvoicesService {
@@ -44,6 +45,7 @@ export class InvoicesService {
     @InjectRepository(ClientOrderLineItem)
     private readonly orderLineItemRepo: Repository<ClientOrderLineItem>,
     private readonly marketSettingsService: MarketSettingsService,
+    private readonly gcs: GcsService,
   ) {}
 
   private async resolveTaxRate(
@@ -392,7 +394,30 @@ export class InvoicesService {
       throw new NotFoundException(`Invoice with ID ${id} not found`);
     }
 
-    return generateInvoicePdfBuffer(invoice);
+    if (
+      invoice.pdfUrl &&
+      this.gcs.isConfigured() &&
+      (await this.gcs.exists("invoices", invoice.pdfUrl))
+    ) {
+      return this.gcs.downloadBuffer("invoices", invoice.pdfUrl);
+    }
+
+    const buffer = await generateInvoicePdfBuffer(invoice);
+
+    if (this.gcs.isConfigured()) {
+      try {
+        const { objectPath } = await this.gcs.uploadClientInvoicePdf(
+          invoice.invoiceNumber,
+          buffer,
+        );
+        invoice.pdfUrl = objectPath;
+        await this.invoiceRepo.save(invoice);
+      } catch {
+        // PDF still returned even if GCS upload fails
+      }
+    }
+
+    return buffer;
   }
 
   private toResponseDto(invoice: Invoice): InvoiceResponseDto {
@@ -401,7 +426,7 @@ export class InvoicesService {
       invoiceNumber: invoice.invoiceNumber,
       proposalId: invoice.proposalId,
       clientId: invoice.clientId,
-      clientName: (invoice.client as any)?.name,
+      clientName: (invoice.client as { name?: string } | undefined)?.name,
       clientEmail: invoice.client?.email,
       issueDate: invoice.issueDate,
       dueDate: invoice.dueDate,
@@ -411,8 +436,9 @@ export class InvoicesService {
       total: Number(invoice.total),
       status: invoice.status,
       notes: invoice.notes,
+      pdfUrl: invoice.pdfUrl,
       createdBy: invoice.createdBy,
-      createdByName: (invoice.creator as any)?.name,
+      createdByName: (invoice.creator as { name?: string } | undefined)?.name,
       lineItems: invoice.lineItems.map((item) => ({
         id: item.id,
         description: item.description,

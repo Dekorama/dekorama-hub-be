@@ -51,10 +51,12 @@ import { OrdersModule } from "./orders/orders.module";
 import { SupplierOrdersModule } from "./supplier-orders/supplier-orders.module";
 import { ReportsModule } from "./reports/reports.module";
 import { ExportsModule } from "./exports/exports.module";
+import { GcsModule } from "./gcs/gcs.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    GcsModule,
     TypeOrmModule.forRootAsync({
       useFactory: () => {
         const isProd = process.env.NODE_ENV === "production";

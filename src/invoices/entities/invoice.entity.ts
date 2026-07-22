@@ -68,6 +68,10 @@ export class Invoice {
   @Column({ type: "text", nullable: true })
   notes!: string | null;
 
+  /** GCS object path in private invoices bucket (e.g. client/DKM-INV-....pdf) */
+  @Column({ type: "varchar", length: 500, nullable: true })
+  pdfUrl!: string | null;
+
   @Column({ type: "uuid" })
   createdBy!: string;
 
