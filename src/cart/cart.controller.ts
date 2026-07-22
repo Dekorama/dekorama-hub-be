@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { CartService } from "./cart.service";
 import { AddToCartDto, SubmitSolicitudDto, UpdateCartItemDto } from "./cart.dto";
+import { toCartItemDto, toCartItemDtoList } from "./cart.mapper";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { CurrentUser } from "../auth/decorators/user.decorator";
 import { User } from "../users/user.entity";
@@ -21,12 +22,14 @@ export class CartController {
 
   @Get()
   async getCart(@CurrentUser() user: User) {
-    return this.cartService.list(user.id);
+    const items = await this.cartService.list(user.id);
+    return toCartItemDtoList(items, user.role);
   }
 
   @Post()
   async addToCart(@Body() dto: AddToCartDto, @CurrentUser() user: User) {
-    return this.cartService.addItem(user.id, dto);
+    const item = await this.cartService.addItem(user.id, dto);
+    return toCartItemDto(item, user.role);
   }
 
   @Patch(":itemId")
@@ -35,7 +38,8 @@ export class CartController {
     @Body() dto: UpdateCartItemDto,
     @CurrentUser() user: User,
   ) {
-    return this.cartService.updateItem(itemId, user.id, dto);
+    const item = await this.cartService.updateItem(itemId, user.id, dto);
+    return toCartItemDto(item, user.role);
   }
 
   @Delete(":itemId")
@@ -58,7 +62,11 @@ export class CartController {
     @Param("proposalId") proposalId: string,
     @CurrentUser() user: User,
   ) {
-    return this.cartService.importFromProposal(proposalId, user);
+    const result = await this.cartService.importFromProposal(proposalId, user);
+    return {
+      cartItems: toCartItemDtoList(result.cartItems, user.role),
+      totalAmount: result.totalAmount,
+    };
   }
 
   @Post("import-from-project/:projectId")
@@ -66,7 +74,11 @@ export class CartController {
     @Param("projectId") projectId: string,
     @CurrentUser() user: User,
   ) {
-    return this.cartService.importFromProject(projectId, user);
+    const result = await this.cartService.importFromProject(projectId, user);
+    return {
+      cartItems: toCartItemDtoList(result.cartItems, user.role),
+      totalAmount: result.totalAmount,
+    };
   }
 
   @Post("submit-solicitud")

@@ -522,11 +522,34 @@ export class ProposalsService {
     return this.materialsRepo.save(records);
   }
 
-  async getMaterials(proposalId: string): Promise<MaterialList[]> {
-    return this.materialsRepo.find({
+  async getMaterials(
+    proposalId: string,
+    user: User,
+  ): Promise<Array<Omit<MaterialList, "suggestedPrice"> & { suggestedPrice?: number }>> {
+    const proposal = await this.findOne(proposalId, user);
+    const materials = await this.materialsRepo.find({
       where: { proposalId },
       relations: ["section"],
       order: { productName: "ASC" },
+    });
+
+    if (user.role === UserRole.ADMIN) {
+      return materials;
+    }
+
+    const showPrices =
+      proposal.status === ProposalStatus.PROFORMA_READY ||
+      proposal.status === ProposalStatus.SIGNED ||
+      (proposal.type === ProposalType.PROJECT &&
+        user.role === UserRole.PROFESSIONAL);
+
+    if (showPrices) {
+      return materials;
+    }
+
+    return materials.map((m) => {
+      const { suggestedPrice: _price, ...rest } = m;
+      return rest;
     });
   }
 

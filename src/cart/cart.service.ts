@@ -39,7 +39,11 @@ export class CartService {
     });
   }
 
-  async addItem(userId: string, dto: AddToCartDto): Promise<CartItem> {
+  async addItem(
+    userId: string,
+    dto: AddToCartDto,
+    options?: { unitPrice?: number },
+  ): Promise<CartItem> {
     // Validate product exists
     const product = await this.productRepo.findOne({
       where: { sku: dto.productSku },
@@ -59,20 +63,23 @@ export class CartService {
     });
 
     if (existingItem) {
-      // Update quantity
       existingItem.quantity += dto.quantity;
-      return this.cartRepo.save(existingItem);
+      const saved = await this.cartRepo.save(existingItem);
+      return (
+        (await this.cartRepo.findOne({ where: { id: saved.id } })) ?? saved
+      );
     }
 
-    // Create new cart item
+    // Quote-first: default unitPrice 0; signed-proposal import passes price
     const cartItem = this.cartRepo.create({
       userId,
       productSku: dto.productSku,
       quantity: dto.quantity,
-      unitPrice: +product.pvpPrice,
+      unitPrice: options?.unitPrice !== undefined ? options.unitPrice : 0,
     });
 
-    return this.cartRepo.save(cartItem);
+    const saved = await this.cartRepo.save(cartItem);
+    return (await this.cartRepo.findOne({ where: { id: saved.id } })) ?? saved;
   }
 
   async updateItem(
@@ -159,10 +166,14 @@ export class CartService {
         continue;
       }
 
-      const cartItem = await this.addItem(requestingUser.id, {
-        productSku: material.productSku,
-        quantity: material.quantity,
-      });
+      const cartItem = await this.addItem(
+        requestingUser.id,
+        {
+          productSku: material.productSku,
+          quantity: material.quantity,
+        },
+        { unitPrice: Number(material.suggestedPrice) },
+      );
 
       cartItems.push(cartItem);
     }

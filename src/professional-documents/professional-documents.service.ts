@@ -15,6 +15,7 @@ import { UploadDocumentDto } from "./professional-document.dto";
 import { PortfolioProject } from "./entities/portfolio-project.entity";
 import { ProductTag } from "./entities/product-tag.entity";
 import { Product } from "../products/product.entity";
+import { toProductPublicDto } from "../products/product.mapper";
 import { CreatePortfolioDto, CreateProductTagDto } from "./dto/portfolio.dto";
 
 @Injectable()
@@ -152,11 +153,21 @@ export class ProfessionalDocumentsService {
   }
 
   async listPortfolios(professionalId: string): Promise<PortfolioProject[]> {
-    return this.portfolioRepo.find({
+    const portfolios = await this.portfolioRepo.find({
       where: { professionalId },
       order: { completionDate: "DESC" },
       relations: ["tags", "tags.product"],
     });
+
+    for (const portfolio of portfolios) {
+      for (const tag of portfolio.tags ?? []) {
+        if (tag.product) {
+          tag.product = toProductPublicDto(tag.product) as unknown as Product;
+        }
+      }
+    }
+
+    return portfolios;
   }
 
   async addProductTag(

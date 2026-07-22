@@ -71,8 +71,8 @@ export class ProposalsController {
 
   @Get("proposals/:id/materials")
   async getMaterials(@Param("id") id: string, @Req() req: Request) {
-    await this.requireUser(req);
-    return this.proposalsService.getMaterials(id);
+    const user = await this.requireUser(req);
+    return this.proposalsService.getMaterials(id, user);
   }
 
   @Get("proposals/:id/sections")

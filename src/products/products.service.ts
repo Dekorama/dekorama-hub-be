@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { ILike, Repository } from "typeorm";
+import { Repository } from "typeorm";
 import { FinishType, PricingMode, Product } from "./product.entity";
 import { ProductFamily } from "./entities/product-family.entity";
 import { ProductSubfamily } from "./entities/product-subfamily.entity";
@@ -105,52 +105,141 @@ export class ProductsService {
     );
   }
 
-  async list(
-    search?: string,
-    family?: string,
-    subfamily?: string,
-    market?: MarketCode,
-  ): Promise<Product[]> {
+  async list(opts: {
+    search?: string;
+    family?: string;
+    subfamily?: string;
+    supplierId?: string;
+    market?: MarketCode;
+    activeOnly?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<{ items: Product[]; total: number; page: number; limit: number } | Product[]> {
+    const {
+      search,
+      family,
+      subfamily,
+      supplierId,
+      market,
+      activeOnly = false,
+      page,
+      limit,
+    } = opts;
+
+    const usePagination = page !== undefined && limit !== undefined;
+    const pageNum = Math.max(1, page ?? 1);
+    const limitNum = Math.min(100, Math.max(1, limit ?? 24));
+
+    const qb = this.repo.createQueryBuilder("p").orderBy("p.name", "ASC");
+
     if (market) {
-      const qb = this.repo.createQueryBuilder("p").orderBy("p.name", "ASC");
       qb.where("(p.market = :market OR (p.market IS NULL AND :market = :ve))", {
         market,
         ve: MarketCode.VE,
       });
-      if (family) qb.andWhere("p.family = :family", { family });
-      if (subfamily) qb.andWhere("p.subfamily = :subfamily", { subfamily });
-      if (search) {
-        qb.andWhere("(p.name ILIKE :search OR p.sku ILIKE :search)", {
-          search: `%${search}%`,
-        });
-      }
-      return qb.getMany();
     }
 
-    const where: Record<string, unknown> = {};
-    if (family) where.family = family;
-    if (subfamily) where.subfamily = subfamily;
-
-    if (search) {
-      return this.repo.find({
-        where: [
-          { ...where, name: ILike(`%${search}%`) },
-          { ...where, sku: ILike(`%${search}%`) },
-        ],
-        order: { name: "ASC" },
+    if (activeOnly) {
+      qb.andWhere("p.isActive = true");
+    }
+    if (family) qb.andWhere("p.family = :family", { family });
+    if (subfamily) qb.andWhere("p.subfamily = :subfamily", { subfamily });
+    if (supplierId) {
+      qb.innerJoin("p.subfamilyRelation", "sf").andWhere(
+        "sf.supplierId = :supplierId",
+        { supplierId },
+      );
+    }
+    if (search?.trim()) {
+      qb.andWhere("(p.name ILIKE :search OR p.sku ILIKE :search)", {
+        search: `%${search.trim()}%`,
       });
     }
 
-    return this.repo.find({
-      where: Object.keys(where).length > 0 ? where : undefined,
-      order: { name: "ASC" },
-    });
+    if (!usePagination) {
+      return qb.getMany();
+    }
+
+    qb.skip((pageNum - 1) * limitNum).take(limitNum);
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total, page: pageNum, limit: limitNum };
   }
 
   async findOne(id: string): Promise<Product> {
     const product = await this.repo.findOneBy({ id });
     if (!product) throw new NotFoundException("Producto no encontrado");
     return product;
+  }
+
+  async findBySku(sku: string): Promise<Product> {
+    const product = await this.repo.findOneBy({ sku });
+    if (!product) throw new NotFoundException("Producto no encontrado");
+    return product;
+  }
+
+  async getCatalogFilters(market?: MarketCode): Promise<{
+    families: Array<{ code: string; name: string; icon: string | null }>;
+    suppliers: Array<{ id: string; name: string; familyCodes: string[] }>;
+  }> {
+    const families = await this.familyRepo.find({
+      order: { name: "ASC" },
+      select: ["code", "name", "icon"],
+    });
+
+    const qb = this.subfamilyRepo
+      .createQueryBuilder("sf")
+      .innerJoin(
+        Product,
+        "p",
+        "p.subfamily = sf.code AND p.family = sf.familyCode",
+      )
+      .where("sf.supplierId IS NOT NULL")
+      .andWhere("p.isActive = true");
+
+    if (market) {
+      qb.andWhere("(p.market = :market OR (p.market IS NULL AND :market = :ve))", {
+        market,
+        ve: MarketCode.VE,
+      });
+    }
+
+    const rows = await qb
+      .select("sf.supplierId", "id")
+      .addSelect("sf.name", "name")
+      .addSelect("sf.familyCode", "familyCode")
+      .distinct(true)
+      .orderBy("sf.name", "ASC")
+      .getRawMany<{ id: string; name: string; familyCode: string }>();
+
+    const supplierMap = new Map<
+      string,
+      { id: string; name: string; familyCodes: string[] }
+    >();
+    for (const row of rows) {
+      const existing = supplierMap.get(row.id);
+      if (existing) {
+        if (!existing.familyCodes.includes(row.familyCode)) {
+          existing.familyCodes.push(row.familyCode);
+        }
+      } else {
+        supplierMap.set(row.id, {
+          id: row.id,
+          name: row.name,
+          familyCodes: [row.familyCode],
+        });
+      }
+    }
+
+    return {
+      families: families.map((f) => ({
+        code: f.code,
+        name: f.name,
+        icon: f.icon,
+      })),
+      suppliers: Array.from(supplierMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    };
   }
 
   /**
