@@ -15,6 +15,10 @@ import { CreateOrderFromProposalDto, UpdateOrderStatusDto } from "./orders.dto";
 import { generateSequentialNumber } from "../common/generate-sequential-number";
 import { MarketSettingsService } from "../admin/market-settings.service";
 import { MarketCode } from "../common/market";
+import {
+  clampDiscountPct,
+  normalizeUnit,
+} from "../common/line-item.utils";
 
 @Injectable()
 export class OrdersService {
@@ -144,7 +148,7 @@ export class OrdersService {
     }
 
     const remainingMaterials = materials.filter(
-      (m) => (m.orderedQuantity ?? 0) < m.quantity,
+      (m) => Number(m.orderedQuantity ?? 0) < Number(m.quantity),
     );
 
     const selectedMaterials = dto.materialListIds?.length
@@ -158,11 +162,14 @@ export class OrdersService {
     }
 
     const lineItems = selectedMaterials.map((m) => {
-      const remaining = m.quantity - (m.orderedQuantity ?? 0);
+      const remaining =
+        Number(m.quantity) - Number(m.orderedQuantity ?? 0);
       return this.lineItemRepo.create({
         productSku: m.productSku,
+        unit: normalizeUnit(m.unit),
         quantityOrdered: remaining,
         unitPrice: m.suggestedPrice,
+        discountPct: clampDiscountPct(m.discountPct),
         proposalMaterialListId: m.id,
       });
     });
@@ -187,8 +194,9 @@ export class OrdersService {
     const saved = await this.orderRepo.save(order);
 
     for (const m of selectedMaterials) {
-      const remaining = m.quantity - (m.orderedQuantity ?? 0);
-      m.orderedQuantity = (m.orderedQuantity ?? 0) + remaining;
+      const remaining =
+        Number(m.quantity) - Number(m.orderedQuantity ?? 0);
+      m.orderedQuantity = Number(m.orderedQuantity ?? 0) + remaining;
       await this.materialRepo.save(m);
     }
 

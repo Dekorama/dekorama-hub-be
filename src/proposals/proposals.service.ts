@@ -38,6 +38,10 @@ import { EmailService } from "../email/email.service";
 import { ProjectsService } from "../projects/projects.service";
 import { generateProformaPdfBuffer } from "../pdf/proforma-pdf.template";
 import { MarketSettingsService } from "../admin/market-settings.service";
+import {
+  clampDiscountPct,
+  normalizeUnit,
+} from "../common/line-item.utils";
 
 @Injectable()
 export class ProposalsService {
@@ -369,8 +373,10 @@ export class ProposalsService {
           sectionId,
           productSku: materialDto.productSku,
           productName: materialDto.productName ?? product!.name,
+          unit: normalizeUnit(materialDto.unit ?? product?.unit),
           quantity: materialDto.quantity,
           orderedQuantity: Math.min(carry, materialDto.quantity),
+          discountPct: clampDiscountPct(materialDto.discountPct),
           suggestedPrice:
             materialDto.suggestedPrice !== undefined
               ? materialDto.suggestedPrice
@@ -407,7 +413,9 @@ export class ProposalsService {
           proposalId,
           productSku: materialDto.dekoramaSku,
           productName: product.name,
+          unit: normalizeUnit(product.unit),
           quantity: materialDto.quantity,
+          discountPct: 0,
           suggestedPrice: product.pvpPrice,
         });
       }),
@@ -507,16 +515,23 @@ export class ProposalsService {
 
     if (dto.materials.length === 0) return [];
 
-    const records = dto.materials.map((m) =>
-      this.materialsRepo.create({
-        proposalId: id,
-        sectionId: m.sectionId ?? null,
-        productSku: m.productSku,
-        productName: m.productName,
-        quantity: m.quantity,
-        orderedQuantity:
-          orderedByKey.get(`${m.productSku}:${m.sectionId ?? ""}`) ?? 0,
-        suggestedPrice: m.suggestedPrice,
+    const records = await Promise.all(
+      dto.materials.map(async (m) => {
+        const product = await this.productsRepo.findOne({
+          where: { sku: m.productSku },
+        });
+        return this.materialsRepo.create({
+          proposalId: id,
+          sectionId: m.sectionId ?? null,
+          productSku: m.productSku,
+          productName: m.productName,
+          unit: normalizeUnit(m.unit ?? product?.unit),
+          quantity: m.quantity,
+          orderedQuantity:
+            orderedByKey.get(`${m.productSku}:${m.sectionId ?? ""}`) ?? 0,
+          discountPct: clampDiscountPct(m.discountPct),
+          suggestedPrice: m.suggestedPrice,
+        });
       }),
     );
     return this.materialsRepo.save(records);

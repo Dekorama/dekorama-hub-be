@@ -2,6 +2,10 @@ import { MaterialList } from "../material-lists/material-list.entity";
 import { Proposal, ProposalType } from "../proposals/proposal.entity";
 import { User } from "../users/user.entity";
 import {
+  displayUnit,
+  lineNetTotal,
+} from "../common/line-item.utils";
+import {
   SalesDocumentLineItem,
   generateSalesDocumentPdf,
 } from "./dekorama-pdf.shared";
@@ -18,16 +22,18 @@ function buildLineItems(
 ): SalesDocumentLineItem[] {
   const items: SalesDocumentLineItem[] = materials.map((material) => {
     const unitPrice = Number(material.suggestedPrice);
-    const quantity = material.quantity;
+    const quantity = Number(material.quantity);
+    const discountPct = Number(material.discountPct) || 0;
+    const net = lineNetTotal(quantity, unitPrice, discountPct);
     return {
       sku: material.productSku,
       description: material.productName,
       brand: material.productSku.split("-")[1] ?? "",
       quantity,
-      unit: "UD",
+      unit: displayUnit(material.unit),
       unitPrice,
-      discountPct: 0,
-      lineTotal: unitPrice * quantity,
+      discountPct,
+      lineTotal: net,
     };
   });
 
@@ -57,8 +63,21 @@ export async function generateProformaPdfBuffer(
   const issueDate =
     proposal.createdAt instanceof Date ? proposal.createdAt : new Date(proposal.createdAt);
   const lineItems = buildLineItems(materials, Number(proposal.laborCost));
-  const bruto = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const discountTotal = 0;
+
+  const bruto = materials.reduce((sum, m) => {
+    return sum + Number(m.suggestedPrice) * Number(m.quantity);
+  }, 0) + Number(proposal.laborCost || 0);
+
+  const discountTotal = materials.reduce((sum, m) => {
+    const lineBruto = Number(m.suggestedPrice) * Number(m.quantity);
+    const net = lineNetTotal(
+      Number(m.quantity),
+      Number(m.suggestedPrice),
+      m.discountPct,
+    );
+    return sum + (lineBruto - net);
+  }, 0);
+
   const subtotal = bruto - discountTotal;
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;

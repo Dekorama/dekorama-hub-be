@@ -12,6 +12,7 @@ export class CreateProposalMaterialDto {
   quantity!: number;
   suggestedPrice?: number;
   productName?: string;
+  discountPct?: number;
 }
 
 export class CreateProposalDto {
@@ -32,6 +33,8 @@ export class ManualMaterialDto {
   productName?: string;
   quantity!: number;
   suggestedPrice?: number;
+  discountPct?: number;
+  unit?: string;
 }
 
 export class ManualSectionDto {
@@ -67,6 +70,8 @@ export class UpdateMaterialItemDto {
   productName!: string;
   quantity!: number;
   suggestedPrice!: number;
+  discountPct?: number;
+  unit?: string;
   sectionId?: string | null;
 }
 

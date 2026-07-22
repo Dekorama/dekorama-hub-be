@@ -1,6 +1,7 @@
 export interface SupplierPreviewLine {
   lineItemId: string;
   productSku: string;
+  unit?: string;
   quantityPending: number;
   primarySupplier?: { id: string; name: string };
   factoryCode?: string;

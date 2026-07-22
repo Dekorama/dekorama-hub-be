@@ -23,6 +23,7 @@ import {
 import { ClientOrderLineItem } from "../orders/entities/client-order-line-item.entity";
 import { Supplier } from "../suppliers/entities/supplier.entity";
 import { FactoryCode } from "../suppliers/entities/factory-code.entity";
+import { normalizeUnit } from "../common/line-item.utils";
 import { User, UserRole } from "../users/user.entity";
 import { EmailService } from "../email/email.service";
 import {
@@ -309,7 +310,7 @@ export class SupplierOrdersService {
         doc
           .fontSize(11)
           .text(
-            `${item.factoryCode} | SKU: ${item.productSku} | Cant: ${item.quantity} × ${currency} ${Number(item.unitCost).toFixed(2)} = ${currency} ${Number(item.lineTotal).toFixed(2)}`,
+            `${item.factoryCode} | SKU: ${item.productSku} | Cant: ${item.quantity} ${item.unit || "UD"} × ${currency} ${Number(item.unitCost).toFixed(2)} = ${currency} ${Number(item.lineTotal).toFixed(2)}`,
           );
       }
 
@@ -465,6 +466,7 @@ export class SupplierOrdersService {
         pendingLines.push({
           lineItemId: item.id,
           productSku: item.productSku,
+          unit: item.unit,
           quantityPending,
           warning: "no_primary_supplier",
         });
@@ -474,6 +476,7 @@ export class SupplierOrdersService {
       const line: SupplierPreviewLine = {
         lineItemId: item.id,
         productSku: item.productSku,
+        unit: item.unit,
         quantityPending,
         primarySupplier: { id: fc.supplier.id, name: fc.supplier.name },
         factoryCode: fc.factoryCode,
@@ -590,12 +593,14 @@ export class SupplierOrdersService {
         );
       }
 
-      const qty = item.quantityOrdered - item.quantitySentToSupplier;
+      const qty =
+        Number(item.quantityOrdered) - Number(item.quantitySentToSupplier);
       lineItems.push(
         lineItemRepo.create({
           clientOrderLineItemId: item.id,
           productSku: item.productSku,
           factoryCode: fc.factoryCode,
+          unit: normalizeUnit(item.unit),
           quantity: qty,
           unitCost: fc.factoryCost ?? 0,
         }),

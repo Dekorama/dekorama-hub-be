@@ -17,6 +17,7 @@ import {
 import { MaterialList } from "../material-lists/material-list.entity";
 import { AddToCartDto, SubmitSolicitudDto, UpdateCartItemDto } from "./cart.dto";
 import { ProjectsService } from "../projects/projects.service";
+import { normalizeUnit } from "../common/line-item.utils";
 
 @Injectable()
 export class CartService {
@@ -276,7 +277,9 @@ export class CartService {
           proposalId: saved.id,
           productSku: item.productSku,
           productName: product.name,
+          unit: normalizeUnit(product.unit),
           quantity: item.quantity,
+          discountPct: 0,
           suggestedPrice: item.unitPrice,
         }),
       );

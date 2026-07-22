@@ -36,12 +36,20 @@ export class MaterialList {
   @Column({ type: "varchar", length: 255 })
   productName!: string;
 
-  @Column({ type: "int" })
+  /** Snapshot of product.unit at time of adding */
+  @Column({ type: "varchar", length: 50, default: "unidad" })
+  unit!: string;
+
+  @Column({ type: "numeric", precision: 12, scale: 4 })
   quantity!: number;
 
   /** Quantity already converted into client orders */
-  @Column({ type: "int", default: 0 })
+  @Column({ type: "numeric", precision: 12, scale: 4, default: 0 })
   orderedQuantity!: number;
+
+  /** Per-line discount percentage (0–100) */
+  @Column({ type: "numeric", precision: 5, scale: 2, default: 0 })
+  discountPct!: number;
 
   // Snapshot of price at time of adding, preserved even if Product.price changes later
   @Column({ type: "numeric", precision: 12, scale: 2 })

@@ -29,20 +29,28 @@ export class ClientOrderLineItem {
   @JoinColumn({ name: "productSku", referencedColumnName: "sku" })
   product!: Product;
 
-  @Column({ type: "int" })
+  /** Snapshot of product.unit */
+  @Column({ type: "varchar", length: 50, default: "unidad" })
+  unit!: string;
+
+  @Column({ type: "numeric", precision: 12, scale: 4 })
   quantityOrdered!: number;
 
-  @Column({ type: "int", default: 0 })
+  @Column({ type: "numeric", precision: 12, scale: 4, default: 0 })
   quantityFulfilled!: number;
 
-  @Column({ type: "int", default: 0 })
+  @Column({ type: "numeric", precision: 12, scale: 4, default: 0 })
   quantityInvoiced!: number;
 
-  @Column({ type: "int", default: 0 })
+  @Column({ type: "numeric", precision: 12, scale: 4, default: 0 })
   quantitySentToSupplier!: number;
 
   @Column({ type: "numeric", precision: 12, scale: 2 })
   unitPrice!: number;
+
+  /** Per-line discount percentage (0–100) */
+  @Column({ type: "numeric", precision: 5, scale: 2, default: 0 })
+  discountPct!: number;
 
   @Column({ type: "numeric", precision: 12, scale: 2 })
   lineTotal!: number;
@@ -53,6 +61,10 @@ export class ClientOrderLineItem {
   @BeforeInsert()
   @BeforeUpdate()
   calculateLineTotal() {
-    this.lineTotal = Number(this.unitPrice) * this.quantityOrdered;
+    const discount = Number(this.discountPct) || 0;
+    this.lineTotal =
+      Number(this.unitPrice) *
+      Number(this.quantityOrdered) *
+      (1 - discount / 100);
   }
 }

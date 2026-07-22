@@ -35,7 +35,11 @@ export class SupplierOrderLineItem {
   @Column({ type: "varchar", length: 100 })
   factoryCode!: string;
 
-  @Column({ type: "int" })
+  /** Snapshot of product.unit */
+  @Column({ type: "varchar", length: 50, default: "unidad" })
+  unit!: string;
+
+  @Column({ type: "numeric", precision: 12, scale: 4 })
   quantity!: number;
 
   @Column({ type: "numeric", precision: 12, scale: 2 })
@@ -47,6 +51,6 @@ export class SupplierOrderLineItem {
   @BeforeInsert()
   @BeforeUpdate()
   calculateLineTotal() {
-    this.lineTotal = Number(this.unitCost) * this.quantity;
+    this.lineTotal = Number(this.unitCost) * Number(this.quantity);
   }
 }

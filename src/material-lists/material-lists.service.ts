@@ -10,6 +10,10 @@ import { MaterialList } from "./material-list.entity";
 import { Proposal, ProposalStatus } from "../proposals/proposal.entity";
 import { User } from "../users/user.entity";
 import { AddMaterialDto } from "./material-list.dto";
+import {
+  clampDiscountPct,
+  normalizeUnit,
+} from "../common/line-item.utils";
 
 @Injectable()
 export class MaterialListsService {
@@ -33,7 +37,15 @@ export class MaterialListsService {
     if (proposal.status !== ProposalStatus.PENDING) {
       throw new BadRequestException("No se pueden modificar materiales de una proforma ya finalizada");
     }
-    const item = this.repo.create({ proposalId, ...dto });
+    const item = this.repo.create({
+      proposalId,
+      productSku: dto.productSku,
+      productName: dto.productName,
+      quantity: dto.quantity,
+      suggestedPrice: dto.suggestedPrice,
+      unit: normalizeUnit(dto.unit),
+      discountPct: clampDiscountPct(dto.discountPct),
+    });
     return this.repo.save(item);
   }
 

@@ -78,10 +78,15 @@ export class ClientOrder {
 
   recalculateTotals(): void {
     if (this.lineItems?.length) {
-      this.subtotal = this.lineItems.reduce(
-        (sum, item) => sum + Number(item.unitPrice) * Number(item.quantityOrdered),
-        0,
-      );
+      this.subtotal = this.lineItems.reduce((sum, item) => {
+        const discount = Number(item.discountPct) || 0;
+        return (
+          sum +
+          Number(item.unitPrice) *
+            Number(item.quantityOrdered) *
+            (1 - discount / 100)
+        );
+      }, 0);
     } else {
       this.subtotal = 0;
     }
