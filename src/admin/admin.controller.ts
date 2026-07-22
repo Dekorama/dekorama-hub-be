@@ -103,16 +103,22 @@ export class AdminController {
   @Get("users")
   async listUsers(
     @Query("role") role: string,
-    @Query("isVerified") isVerified: string,
+    @Query("isVerified") isVerified: string | undefined,
     @Query("market") market: string,
     @Req() req: Request,
   ) {
     await this.requireAdmin(req);
     const where: Record<string, unknown> = {};
     if (role) where["role"] = role;
-    if (isVerified !== undefined) where["isVerified"] = isVerified === "true";
+    if (isVerified === "true" || isVerified === "false") {
+      where["isVerified"] = isVerified === "true";
+    }
     if (market && isMarketCode(market)) where["country"] = market;
-    return this.usersRepo.find({ where: where as any, order: { createdAt: "DESC" } });
+    const users = await this.usersRepo.find({
+      where: where as never,
+      order: { createdAt: "DESC" },
+    });
+    return users.map(({ passwordHash: _pw, ...safe }) => safe);
   }
 
   @Get("markets")
