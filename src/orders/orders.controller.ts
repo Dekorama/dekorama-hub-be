@@ -9,7 +9,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { OrdersService } from "./orders.service";
-import { CreateOrderFromProposalDto, UpdateOrderStatusDto } from "./orders.dto";
+import {
+  CreateOrderFromProposalDto,
+  UpdateOrderDto,
+  UpdateOrderStatusDto,
+} from "./orders.dto";
 import { SessionGuard } from "../auth/guards/session.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -34,7 +38,8 @@ export class OrdersController {
     @Query("market") market?: string,
   ) {
     const clientId = user.role === UserRole.ADMIN ? undefined : user.id;
-    const marketFilter = user.role === UserRole.ADMIN ? parseMarketFilter(market) : undefined;
+    const marketFilter =
+      user.role === UserRole.ADMIN ? parseMarketFilter(market) : undefined;
     return this.ordersService.list({ clientId, status, market: marketFilter });
   }
 
@@ -70,5 +75,16 @@ export class OrdersController {
     @CurrentUser() user: User,
   ) {
     return this.ordersService.updateStatus(id, dto, user);
+  }
+
+  @Patch(":id")
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async update(
+    @Param("id") id: string,
+    @Body() dto: UpdateOrderDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.ordersService.update(id, dto, user);
   }
 }

@@ -33,6 +33,7 @@ import { FactoryCode } from "./suppliers/entities/factory-code.entity";
 import { SupplierFamily } from "./suppliers/entities/supplier-family.entity";
 import { ClientOrder } from "./orders/entities/client-order.entity";
 import { ClientOrderLineItem } from "./orders/entities/client-order-line-item.entity";
+import { ClientOrderSection } from "./orders/entities/client-order-section.entity";
 import { SupplierOrder } from "./supplier-orders/entities/supplier-order.entity";
 import { SupplierOrderLineItem } from "./supplier-orders/entities/supplier-order-line-item.entity";
 import { SupplierInvoice } from "./supplier-orders/entities/supplier-invoice.entity";
@@ -111,6 +112,7 @@ import { GcsModule } from "./gcs/gcs.module";
           SupplierFamily,
           ClientOrder,
           ClientOrderLineItem,
+          ClientOrderSection,
           SupplierOrder,
           SupplierOrderLineItem,
           SupplierInvoice,

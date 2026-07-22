@@ -35,6 +35,8 @@ export class ManualMaterialDto {
   suggestedPrice?: number;
   discountPct?: number;
   unit?: string;
+  externalComment?: string | null;
+  internalComment?: string | null;
 }
 
 export class ManualSectionDto {
@@ -73,6 +75,8 @@ export class UpdateMaterialItemDto {
   discountPct?: number;
   unit?: string;
   sectionId?: string | null;
+  externalComment?: string | null;
+  internalComment?: string | null;
 }
 
 export class UpdateMaterialListDto {

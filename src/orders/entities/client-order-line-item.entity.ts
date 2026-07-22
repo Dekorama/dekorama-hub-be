@@ -8,6 +8,7 @@ import {
   BeforeUpdate,
 } from "typeorm";
 import { ClientOrder } from "./client-order.entity";
+import { ClientOrderSection } from "./client-order-section.entity";
 import { Product } from "../../products/product.entity";
 
 @Entity({ name: "client_order_line_items" })
@@ -57,6 +58,24 @@ export class ClientOrderLineItem {
 
   @Column({ type: "uuid", nullable: true })
   proposalMaterialListId!: string | null;
+
+  @Column({ type: "uuid", nullable: true })
+  sectionId!: string | null;
+
+  @ManyToOne(() => ClientOrderSection, (s) => s.lineItems, {
+    onDelete: "SET NULL",
+    nullable: true,
+  })
+  @JoinColumn({ name: "sectionId" })
+  section!: ClientOrderSection | null;
+
+  /** Visible to client */
+  @Column({ type: "text", nullable: true })
+  externalComment!: string | null;
+
+  /** Admin-only */
+  @Column({ type: "text", nullable: true })
+  internalComment!: string | null;
 
   @BeforeInsert()
   @BeforeUpdate()

@@ -11,6 +11,7 @@ import {
 import { User } from "../../users/user.entity";
 import { Proposal } from "../../proposals/proposal.entity";
 import { ClientOrderLineItem } from "./client-order-line-item.entity";
+import { ClientOrderSection } from "./client-order-section.entity";
 
 export enum ClientOrderStatus {
   DRAFT = "draft",
@@ -72,6 +73,9 @@ export class ClientOrder {
 
   @OneToMany(() => ClientOrderLineItem, (item) => item.order, { cascade: true, eager: true })
   lineItems!: ClientOrderLineItem[];
+
+  @OneToMany(() => ClientOrderSection, (s) => s.order, { cascade: true })
+  sections!: ClientOrderSection[];
 
   @Column({ type: "timestamp with time zone", default: () => "now()" })
   createdAt!: Date;

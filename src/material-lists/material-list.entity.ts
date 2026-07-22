@@ -54,4 +54,12 @@ export class MaterialList {
   // Snapshot of price at time of adding, preserved even if Product.price changes later
   @Column({ type: "numeric", precision: 12, scale: 2 })
   suggestedPrice!: number;
+
+  /** Visible to client */
+  @Column({ type: "text", nullable: true })
+  externalComment!: string | null;
+
+  /** Admin-only */
+  @Column({ type: "text", nullable: true })
+  internalComment!: string | null;
 }

@@ -34,7 +34,26 @@ export function lineNetTotal(
 /** Display unit for PDFs (short UM). */
 export function displayUnit(unit?: string | null): string {
   const u = normalizeUnit(unit);
-  if (u === "m2") return "m2";
+  if (u === "m2") return "M2";
   if (u.toLowerCase() === "unidad" || u.toLowerCase() === "ud") return "UD";
   return u;
+}
+
+/** m² per box from product packaging; null if incomplete. */
+export function m2PerBox(
+  piecesPerBox?: number | null,
+  unitPerPiece?: number | null,
+): number | null {
+  const pieces = Number(piecesPerBox);
+  const perPiece = Number(unitPerPiece);
+  if (!Number.isFinite(pieces) || !Number.isFinite(perPiece) || pieces <= 0 || perPiece <= 0) {
+    return null;
+  }
+  return pieces * perPiece;
+}
+
+/** Box count for a given m² quantity (ceil). */
+export function boxesForM2(quantityM2: number, m2PerBoxValue: number): number {
+  if (m2PerBoxValue <= 0) return 0;
+  return Math.ceil(Number(quantityM2) / m2PerBoxValue);
 }

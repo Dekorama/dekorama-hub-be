@@ -383,6 +383,8 @@ export class ProposalsService {
               : product
                 ? Number(product.pvpPrice)
                 : 0,
+          externalComment: materialDto.externalComment?.trim() || null,
+          internalComment: materialDto.internalComment?.trim() || null,
         });
       }),
     );
@@ -531,6 +533,8 @@ export class ProposalsService {
             orderedByKey.get(`${m.productSku}:${m.sectionId ?? ""}`) ?? 0,
           discountPct: clampDiscountPct(m.discountPct),
           suggestedPrice: m.suggestedPrice,
+          externalComment: m.externalComment?.trim() || null,
+          internalComment: m.internalComment?.trim() || null,
         });
       }),
     );
@@ -547,6 +551,12 @@ export class ProposalsService {
       relations: ["section"],
       order: { productName: "ASC" },
     });
+
+    if (user.role !== UserRole.ADMIN) {
+      for (const m of materials) {
+        m.internalComment = null;
+      }
+    }
 
     if (user.role === UserRole.ADMIN) {
       return materials;
@@ -738,7 +748,29 @@ export class ProposalsService {
 
   async generateProformaPdf(id: string, requestingUser: User): Promise<Buffer> {
     const proposal = await this.findOne(id, requestingUser);
-    const materials = await this.materialsRepo.find({ where: { proposalId: id } });
+    const materials = await this.materialsRepo.find({
+      where: { proposalId: id },
+      relations: ["section"],
+    });
+    const sections = await this.sectionRepo.find({
+      where: { proposalId: id },
+      order: { sortOrder: "ASC" },
+    });
+
+    const skus = [...new Set(materials.map((m) => m.productSku))];
+    const products =
+      skus.length > 0
+        ? await this.productsRepo.find({ where: { sku: In(skus) } })
+        : [];
+    const packagingBySku = new Map(
+      products.map((p) => [
+        p.sku,
+        {
+          piecesPerBox: p.piecesPerBox,
+          unitPerPiece: p.unitPerPiece != null ? Number(p.unitPerPiece) : null,
+        },
+      ]),
+    );
 
     const clientId = this.getProposalClientId(proposal);
     const client =
@@ -756,6 +788,13 @@ export class ProposalsService {
           : client.taxRate !== undefined && client.taxRate !== null
             ? Number(client.taxRate)
             : await this.marketSettingsService.getDefaultTaxRate(client.country);
-    return generateProformaPdfBuffer(proposal, client, materials, taxRate);
+    return generateProformaPdfBuffer(
+      proposal,
+      client,
+      materials,
+      taxRate,
+      sections,
+      packagingBySku,
+    );
   }
 }

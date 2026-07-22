@@ -139,6 +139,8 @@ export interface SalesDocumentLineItem {
   discountPct: number;
   lineTotal: number;
   subNote?: string;
+  /** When true, render as a section header row spanning the table */
+  isSectionHeader?: boolean;
 }
 
 export interface SalesDocumentData {
@@ -313,6 +315,24 @@ export async function generateSalesDocumentPdf(data: SalesDocumentData): Promise
     let rowY = tableTop + 16;
     doc.font("Helvetica").fontSize(7);
     for (const item of data.lineItems) {
+      if (item.isSectionHeader) {
+        const rowH = 18;
+        doc.rect(left, rowY, contentW, rowH).fillAndStroke("#f0f0f0", "#cccccc");
+        doc
+          .fillColor("#000000")
+          .fontSize(7)
+          .font("Helvetica-Bold")
+          .text(item.description, left + 4, rowY + 5, {
+            width: contentW - 8,
+            height: rowH - 6,
+            lineBreak: false,
+            ellipsis: true,
+          });
+        doc.font("Helvetica").fontSize(7);
+        rowY += rowH;
+        continue;
+      }
+
       const rowH = item.subNote ? 28 : 20;
       doc.rect(left, rowY, contentW, rowH).stroke("#cccccc");
       const brand = item.brand ?? item.sku.split("-")[1] ?? "";
